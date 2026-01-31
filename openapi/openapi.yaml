@@ -180,9 +180,9 @@ components:
         password:
           type: string
 
-    UserRole:
+    Role:
       type: string
-      enum: [ADMIN, MANAGER, USER]
+      enum: [SUPER_ADMIN, ORG_ADMIN, SECURITY_OWNER, AUDITOR, CONTRIBUTOR, VIEWER]
 
     RiskLevel:
       type: string

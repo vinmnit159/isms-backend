@@ -6,8 +6,9 @@ import { prisma } from '../../lib/prisma';
 const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(authConfig.passwordMinLength),
-  name: z.string().min(2),
-  role: z.enum(['ADMIN', 'MANAGER', 'USER']).default('USER'),
+  name: z.string().optional(),
+  role: z.enum(['SUPER_ADMIN', 'ORG_ADMIN', 'SECURITY_OWNER', 'AUDITOR', 'CONTRIBUTOR', 'VIEWER']).default('VIEWER'),
+  organizationId: z.string().uuid(),
 });
 
 const loginSchema = z.object({
@@ -40,7 +41,10 @@ export async function authRoutes(app: FastifyInstance) {
       // Create user
       const user = await prisma.user.create({
         data: {
-          ...data,
+          email: data.email,
+          name: data.name,
+          role: data.role,
+          organizationId: data.organizationId,
           password: hashedPassword,
         },
         select: {
@@ -48,6 +52,7 @@ export async function authRoutes(app: FastifyInstance) {
           email: true,
           name: true,
           role: true,
+          organizationId: true,
           createdAt: true,
         },
       });
@@ -57,6 +62,7 @@ export async function authRoutes(app: FastifyInstance) {
         sub: user.id,
         email: user.email,
         role: user.role,
+        organizationId: user.organizationId,
       });
       
       return reply.status(201).send({
@@ -80,6 +86,9 @@ export async function authRoutes(app: FastifyInstance) {
       // Find user
       const user = await prisma.user.findUnique({
         where: { email: data.email },
+        include: {
+          organization: true,
+        },
       });
       
       if (!user) {
@@ -105,6 +114,7 @@ export async function authRoutes(app: FastifyInstance) {
         sub: user.id,
         email: user.email,
         role: user.role,
+        organizationId: user.organizationId,
       });
       
       return reply.send({
@@ -113,6 +123,8 @@ export async function authRoutes(app: FastifyInstance) {
           email: user.email,
           name: user.name,
           role: user.role,
+          organizationId: user.organizationId,
+          organization: user.organization,
         },
         token,
       });
@@ -139,8 +151,8 @@ export async function authRoutes(app: FastifyInstance) {
           email: true,
           name: true,
           role: true,
+          organizationId: true,
           createdAt: true,
-          updatedAt: true,
         },
       });
       

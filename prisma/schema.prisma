@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,298 +7,243 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String
-  role      UserRole @default(USER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+/////////////////////////
+// ENUMS
+/////////////////////////
 
-  // Relations
-  createdRisks     Risk[]     @relation("RiskCreator")
-  assignedRisks    Risk[]     @relation("RiskAssignee")
-  createdControls  Control[]  @relation("ControlCreator")
-  auditLogs        AuditLog[]
-  evidence         Evidence[]
-
-  @@map("users")
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  SECURITY_OWNER
+  AUDITOR
+  CONTRIBUTOR
+  VIEWER
 }
 
-model Risk {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  level       RiskLevel
-  status      RiskStatus @default(OPEN)
-  probability Int        // 1-5 scale
-  impact      Int        // 1-5 scale
-  
-  // Risk calculation
-  riskScore   Int // calculated as probability * impact
-  
-  // Metadata
-  category    String?
-  tags        String[] // Array of strings for tags
-  
-  // Relations
-  createdById String
-  createdBy   User       @relation("RiskCreator", fields: [createdById], references: [id])
-  assigneeId  String?
-  assignee    User?      @relation("RiskAssignee", fields: [assigneeId], references: [id])
-  
-  controls    RiskControl[]
-  evidence    Evidence[]
-  auditLogs   AuditLog[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("risks")
-}
-
-model Control {
-  id          String        @id @default(cuid())
-  name        String
-  description String?
-  type        ControlType
-  category    String?
-  status      ControlStatus @default(DRAFT)
-  frequency   ControlFrequency?
-  
-  // Implementation details
-  owner       String?
-  procedure   String?
-  automation  Boolean       @default(false)
-  
-  // Relations
-  createdById String
-  createdBy   User          @relation("ControlCreator", fields: [createdById], references: [id])
-  
-  risks       RiskControl[]
-  evidence    Evidence[]
-  auditLogs   AuditLog[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("controls")
-}
-
-model RiskControl {
-  id         String @id @default(cuid())
-  riskId     String
-  controlId  String
-  risk       Risk   @relation(fields: [riskId], references: [id], onDelete: Cascade)
-  control    Control @relation(fields: [controlId], references: [id], onDelete: Cascade)
-  
-  createdAt DateTime @default(now())
-
-  @@unique([riskId, controlId])
-  @@map("risk_controls")
-}
-
-model Framework {
-  id          String @id @default(cuid())
-  name        String @unique
-  description String?
-  version     String?
-  
-  controls    FrameworkControl[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("frameworks")
-}
-
-model FrameworkControl {
-  id           String @id @default(cuid())
-  frameworkId  String
-  controlId    String
-  framework    Framework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
-  control      Control   @relation(fields: [controlId], references: [id], onDelete: Cascade)
-  
-  requirement String?
-  
-  createdAt DateTime @default(now())
-
-  @@unique([frameworkId, controlId])
-  @@map("framework_controls")
-}
-
-model Asset {
-  id          String     @id @default(cuid())
-  name        String
-  description String?
-  type        AssetType
-  category    String?
-  status      AssetStatus @default(ACTIVE)
-  
-  // Asset details
-  owner       String?
-  location    String?
-  criticality AssetCriticality @default(MEDIUM)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("assets")
-}
-
-model Evidence {
-  id          String       @id @default(cuid())
-  title       String
-  description String?
-  type        EvidenceType
-  fileUrl     String?
-  filePath    String?
-  
-  // Relations
-  controlId   String?
-  control     Control?     @relation(fields: [controlId], references: [id])
-  
-  riskId      String?
-  risk        Risk?        @relation(fields: [riskId], references: [id])
-  
-  uploadedById String
-  uploadedBy    User        @relation(fields: [uploadedById], references: [id])
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("evidence")
-}
-
-model Audit {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  type        AuditType
-  status      AuditStatus @default(PLANNED)
-  
-  // Audit schedule
-  startDate   DateTime?
-  endDate     DateTime?
-  
-  // Audit scope
-  scope       String[] // Array of areas to audit
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("audits")
-}
-
-model AuditLog {
-  id        String     @id @default(cuid())
-  action    String
-  entity    String     // entity type (risk, control, user, etc.)
-  entityId  String     // entity ID
-  oldValue  String?    // JSON string of old values
-  newValue  String?    // JSON string of new values
-  
-  // Metadata
-  userId     String
-  user       User       @relation(fields: [userId], references: [id])
-  ipAddress  String?
-  userAgent  String?
-  
-  createdAt DateTime @default(now())
-
-  @@map("audit_logs")
-}
-
-// Enums
-enum UserRole {
-  ADMIN
-  MANAGER
-  USER
+enum AssetType {
+  CLOUD
+  APPLICATION
+  DATABASE
+  SAAS
+  ENDPOINT
+  NETWORK
+  OTHER
 }
 
 enum RiskLevel {
-  CRITICAL
-  HIGH
-  MEDIUM
   LOW
+  MEDIUM
+  HIGH
+  CRITICAL
 }
 
 enum RiskStatus {
   OPEN
-  IN_PROGRESS
-  CLOSED
-  ACCEPTED
   MITIGATED
-}
-
-enum ControlType {
-  PREVENTIVE
-  DETECTIVE
-  CORRECTIVE
-  COMPENSATING
+  ACCEPTED
+  TRANSFERRED
 }
 
 enum ControlStatus {
-  DRAFT
-  ACTIVE
-  INACTIVE
-  UNDER_REVIEW
-}
-
-enum ControlFrequency {
-  CONTINUOUS
-  DAILY
-  WEEKLY
-  MONTHLY
-  QUARTERLY
-  ANNUALLY
-  ON_DEMAND
-}
-
-enum AssetType {
-  HARDWARE
-  SOFTWARE
-  DATA
-  NETWORK
-  PHYSICAL
-  PERSONNEL
-}
-
-enum AssetStatus {
-  ACTIVE
-  INACTIVE
-  RETIRED
-  UNDER_MAINTENANCE
-}
-
-enum AssetCriticality {
-  CRITICAL
-  HIGH
-  MEDIUM
-  LOW
+  IMPLEMENTED
+  PARTIALLY_IMPLEMENTED
+  NOT_IMPLEMENTED
 }
 
 enum EvidenceType {
-  DOCUMENT
+  FILE
+  LINK
   SCREENSHOT
-  LOG_FILE
-  VIDEO
-  OTHER
+  LOG
+  AUTOMATED
 }
 
 enum AuditType {
   INTERNAL
   EXTERNAL
-  COMPLIANCE
-  SOX
-  SOC2
-  ISO27001
+  SURVEILLANCE
 }
 
-enum AuditStatus {
-  PLANNED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
+enum FindingSeverity {
+  MINOR
+  MAJOR
+  OBSERVATION
+}
+
+/////////////////////////
+// ORGANIZATION & USERS
+/////////////////////////
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  createdAt  DateTime @default(now())
+
+  users       User[]
+  assets      Asset[]
+  controls    Control[]
+  policies    Policy[]
+  audits      Audit[]
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  name           String?
+  role           Role
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  activityLogs   ActivityLog[]
+}
+
+/////////////////////////
+// ASSET MANAGEMENT
+/////////////////////////
+
+model Asset {
+  id             String   @id @default(uuid())
+  name           String
+  type           AssetType
+  ownerId        String
+  criticality    RiskLevel
+  description    String?
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  risks          Risk[]
+}
+
+/////////////////////////
+// RISK MANAGEMENT
+/////////////////////////
+
+model Risk {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  impact      RiskLevel
+  likelihood  RiskLevel
+  riskScore   Int
+  status      RiskStatus
+  assetId     String
+  createdAt   DateTime @default(now())
+
+  asset        Asset @relation(fields: [assetId], references: [id])
+  treatments   RiskTreatment[]
+}
+
+model RiskTreatment {
+  id        String @id @default(uuid())
+  riskId    String
+  controlId String
+  notes     String?
+
+  risk      Risk    @relation(fields: [riskId], references: [id])
+  control   Control @relation(fields: [controlId], references: [id])
+}
+
+/////////////////////////
+// ISO CONTROLS & SOA
+/////////////////////////
+
+model Control {
+  id             String        @id @default(uuid())
+  isoReference   String        // e.g. "A.5.9"
+  title          String
+  description    String
+  status         ControlStatus
+  justification  String?
+  organizationId String
+  createdAt      DateTime      @default(now())
+
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  evidence       Evidence[]
+  riskMappings   RiskTreatment[]
+  findings      AuditFinding[]
+}
+
+/////////////////////////
+// EVIDENCE MANAGEMENT
+/////////////////////////
+
+model Evidence {
+  id          String       @id @default(uuid())
+  type        EvidenceType
+  fileName    String?
+  fileUrl     String?
+  hash        String
+  controlId   String
+  collectedBy String?
+  automated   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  control     Control @relation(fields: [controlId], references: [id])
+}
+
+/////////////////////////
+// POLICY MANAGEMENT
+/////////////////////////
+
+model Policy {
+  id             String   @id @default(uuid())
+  name           String
+  version        String
+  status         String
+  documentUrl    String
+  organizationId String
+  approvedBy     String?
+  approvedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
+
+/////////////////////////
+// AUDIT MANAGEMENT
+/////////////////////////
+
+model Audit {
+  id             String    @id @default(uuid())
+  type           AuditType
+  auditor        String
+  scope          String
+  startDate      DateTime
+  endDate        DateTime?
+  organizationId String
+  createdAt      DateTime  @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  findings       AuditFinding[]
+}
+
+model AuditFinding {
+  id          String          @id @default(uuid())
+  auditId    String
+  controlId  String
+  severity   FindingSeverity
+  description String
+  remediation String?
+  status      String
+  createdAt   DateTime        @default(now())
+
+  audit       Audit   @relation(fields: [auditId], references: [id])
+  control     Control @relation(fields: [controlId], references: [id])
+}
+
+/////////////////////////
+// AUDIT LOGGING (CRITICAL)
+/////////////////////////
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  timestamp DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id])
 }
