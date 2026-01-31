@@ -1,0 +1,307 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdRisks     Risk[]     @relation("RiskCreator")
+  assignedRisks    Risk[]     @relation("RiskAssignee")
+  createdControls  Control[]  @relation("ControlCreator")
+  auditLogs        AuditLog[]
+  evidence         Evidence[]
+
+  @@map("users")
+}
+
+model Risk {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  level       RiskLevel
+  status      RiskStatus @default(OPEN)
+  probability Int        // 1-5 scale
+  impact      Int        // 1-5 scale
+  
+  // Risk calculation
+  riskScore   Int // calculated as probability * impact
+  
+  // Metadata
+  category    String?
+  tags        String[] // Array of strings for tags
+  
+  // Relations
+  createdById String
+  createdBy   User       @relation("RiskCreator", fields: [createdById], references: [id])
+  assigneeId  String?
+  assignee    User?      @relation("RiskAssignee", fields: [assigneeId], references: [id])
+  
+  controls    RiskControl[]
+  evidence    Evidence[]
+  auditLogs   AuditLog[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("risks")
+}
+
+model Control {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  type        ControlType
+  category    String?
+  status      ControlStatus @default(DRAFT)
+  frequency   ControlFrequency?
+  
+  // Implementation details
+  owner       String?
+  procedure   String?
+  automation  Boolean       @default(false)
+  
+  // Relations
+  createdById String
+  createdBy   User          @relation("ControlCreator", fields: [createdById], references: [id])
+  
+  risks       RiskControl[]
+  evidence    Evidence[]
+  auditLogs   AuditLog[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("controls")
+}
+
+model RiskControl {
+  id         String @id @default(cuid())
+  riskId     String
+  controlId  String
+  risk       Risk   @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  control    Control @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+
+  @@unique([riskId, controlId])
+  @@map("risk_controls")
+}
+
+model Framework {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  version     String?
+  
+  controls    FrameworkControl[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("frameworks")
+}
+
+model FrameworkControl {
+  id           String @id @default(cuid())
+  frameworkId  String
+  controlId    String
+  framework    Framework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  control      Control   @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  
+  requirement String?
+  
+  createdAt DateTime @default(now())
+
+  @@unique([frameworkId, controlId])
+  @@map("framework_controls")
+}
+
+model Asset {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  type        AssetType
+  category    String?
+  status      AssetStatus @default(ACTIVE)
+  
+  // Asset details
+  owner       String?
+  location    String?
+  criticality AssetCriticality @default(MEDIUM)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("assets")
+}
+
+model Evidence {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  type        EvidenceType
+  fileUrl     String?
+  filePath    String?
+  
+  // Relations
+  controlId   String?
+  control     Control?     @relation(fields: [controlId], references: [id])
+  
+  riskId      String?
+  risk        Risk?        @relation(fields: [riskId], references: [id])
+  
+  uploadedById String
+  uploadedBy    User        @relation(fields: [uploadedById], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("evidence")
+}
+
+model Audit {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  type        AuditType
+  status      AuditStatus @default(PLANNED)
+  
+  // Audit schedule
+  startDate   DateTime?
+  endDate     DateTime?
+  
+  // Audit scope
+  scope       String[] // Array of areas to audit
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("audits")
+}
+
+model AuditLog {
+  id        String     @id @default(cuid())
+  action    String
+  entity    String     // entity type (risk, control, user, etc.)
+  entityId  String     // entity ID
+  oldValue  String?    // JSON string of old values
+  newValue  String?    // JSON string of new values
+  
+  // Metadata
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  ipAddress  String?
+  userAgent  String?
+  
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  MANAGER
+  USER
+}
+
+enum RiskLevel {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum RiskStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+  ACCEPTED
+  MITIGATED
+}
+
+enum ControlType {
+  PREVENTIVE
+  DETECTIVE
+  CORRECTIVE
+  COMPENSATING
+}
+
+enum ControlStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  UNDER_REVIEW
+}
+
+enum ControlFrequency {
+  CONTINUOUS
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+  ON_DEMAND
+}
+
+enum AssetType {
+  HARDWARE
+  SOFTWARE
+  DATA
+  NETWORK
+  PHYSICAL
+  PERSONNEL
+}
+
+enum AssetStatus {
+  ACTIVE
+  INACTIVE
+  RETIRED
+  UNDER_MAINTENANCE
+}
+
+enum AssetCriticality {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum EvidenceType {
+  DOCUMENT
+  SCREENSHOT
+  LOG_FILE
+  VIDEO
+  OTHER
+}
+
+enum AuditType {
+  INTERNAL
+  EXTERNAL
+  COMPLIANCE
+  SOX
+  SOC2
+  ISO27001
+}
+
+enum AuditStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
