@@ -18,7 +18,7 @@ const loginSchema = z.object({
 
 export async function authRoutes(app: FastifyInstance) {
   // Register user
-  app.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/register', async (request: any, reply: any) => {
     try {
       const data = registerSchema.parse(request.body);
       
@@ -79,7 +79,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
   
   // Login user
-  app.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/login', async (request: any, reply: any) => {
     try {
       const data = loginSchema.parse(request.body);
       
@@ -139,8 +139,8 @@ export async function authRoutes(app: FastifyInstance) {
   
   // Get current user (protected route)
   app.get('/me', {
-    onRequest: [app.authenticate],
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    onRequest: [(app as any).authenticate],
+  }, async (request: any, reply: any) => {
     try {
       const userId = request.user.sub;
       

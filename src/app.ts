@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import swagger from '@fastify/swagger';
@@ -8,6 +8,12 @@ import { env } from './config/env';
 import { jwtPlugin } from './plugins/jwt';
 import { swaggerPlugin } from './plugins/swagger';
 import { authRoutes } from './modules/auth/routes';
+import { assetRoutes } from './modules/assets/routes';
+import { riskRoutes } from './modules/risks/routes';
+import { controlRoutes } from './modules/controls/routes';
+import { evidenceRoutes } from './modules/evidence/routes';
+import { auditRoutes } from './modules/audits/routes';
+import { userRoutes } from './modules/users/routes';
 import { loggerPlugin } from './lib/logger';
 
 export const app: FastifyInstance = Fastify({
@@ -25,6 +31,12 @@ app.register(swaggerPlugin);
 
 // Register routes
 app.register(authRoutes, { prefix: '/api/auth' });
+app.register(assetRoutes, { prefix: '/api/assets' });
+app.register(riskRoutes, { prefix: '/api/risks' });
+app.register(controlRoutes, { prefix: '/api/controls' });
+app.register(evidenceRoutes, { prefix: '/api/evidence' });
+app.register(auditRoutes, { prefix: '/api/audits' });
+app.register(userRoutes, { prefix: '/api/users' });
 
 // Health check
 app.get('/health', async () => {
@@ -32,7 +44,7 @@ app.get('/health', async () => {
 });
 
 // Error handler
-app.setErrorHandler((error, request, reply) => {
+app.setErrorHandler((error: any, request: any, reply: any) => {
   app.log.error(error);
   
   if (error.validation) {
