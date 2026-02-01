@@ -1,4 +1,4 @@
-import { FastifyRequest } from 'fastify';
+import { FastifyRequest, FastifyReply } from 'fastify';
 
 export enum AssetType {
   CLOUD = 'CLOUD',
