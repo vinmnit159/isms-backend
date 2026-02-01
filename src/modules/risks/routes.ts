@@ -141,8 +141,8 @@ export async function riskRoutes(app: FastifyInstance) {
       if (data.impact || data.likelihood) {
         const existingRisk = await prisma.risk.findUnique({ where: { id } });
         if (existingRisk) {
-          const impactValue = getRiskValue(data.impact || existingRisk.impact);
-          const likelihoodValue = getRiskValue(data.likelihood || existingRisk.likelihood);
+          const impactValue = getRiskValue(data.impact || existingRisk.impact as any);
+          const likelihoodValue = getRiskValue(data.likelihood || existingRisk.likelihood as any);
           updateData.riskScore = impactValue * likelihoodValue;
         }
       }
