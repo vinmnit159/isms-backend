@@ -16,7 +16,7 @@
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "railway:build": "npm run build",
-    "railway:deploy": "npm run migrate:deploy && npm start"
+    "railway:deploy": "npx prisma db push && npm start"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

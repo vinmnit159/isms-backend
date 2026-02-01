@@ -3,6 +3,9 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Install OpenSSL and other system dependencies
+RUN apk add --no-cache openssl
+
 # Copy package files
 COPY package*.json ./
 COPY tsconfig.json ./
