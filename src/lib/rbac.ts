@@ -164,11 +164,24 @@ export function hasPermission(userRole: Role, permission: Permission): boolean {
 }
 
 export function requirePermission(permission: Permission) {
-  return async function(request: FastifyRequest) {
-    const userRole = request.user?.role as Role;
-    
-    if (!userRole || !hasPermission(userRole, permission)) {
-      throw new Error('Insufficient permissions');
+  return async function(request: FastifyRequest, reply: FastifyReply) {
+    try {
+      await (request as any).jwtVerify();
+      const userRole = request.user?.role as Role;
+      
+      if (!userRole || !hasPermission(userRole, permission)) {
+        reply.status(403).send({
+          error: 'Forbidden',
+          message: 'Insufficient permissions',
+        });
+        return;
+      }
+    } catch (err) {
+      reply.status(401).send({
+        error: 'Unauthorized',
+        message: 'Authentication required',
+      });
+      return;
     }
   };
 }

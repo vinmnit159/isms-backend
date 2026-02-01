@@ -7,6 +7,7 @@ import swaggerUi from '@fastify/swagger-ui';
 import { env } from './config/env';
 import { jwtPlugin } from './plugins/jwt';
 import { swaggerPlugin } from './plugins/swagger';
+import { authenticate } from './lib/auth-middleware';
 import { authRoutes } from './modules/auth/routes';
 import { assetRoutes } from './modules/assets/routes';
 import { riskRoutes } from './modules/risks/routes';
@@ -29,6 +30,9 @@ app.register(cors, {
 });
 app.register(jwtPlugin);
 app.register(swaggerPlugin);
+
+// Add authentication decorator
+app.decorate('authenticate', authenticate);
 
 // Register routes
 app.register(authRoutes, { prefix: '/api/auth' });

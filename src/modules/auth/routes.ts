@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { authConfig } from '../../config/auth';
 import { prisma } from '../../lib/prisma';
+import { authenticate } from '../../lib/auth-middleware';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -146,7 +147,7 @@ export async function authRoutes(app: FastifyInstance) {
   
   // Get current user (protected route)
   app.get('/me', {
-    onRequest: [(app as any).authenticate],
+    onRequest: [authenticate],
   }, async (request: any, reply: any) => {
     try {
       const userId = request.user.sub;
