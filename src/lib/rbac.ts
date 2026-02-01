@@ -1,5 +1,35 @@
 import { FastifyRequest } from 'fastify';
 
+export enum AssetType {
+  CLOUD = 'CLOUD',
+  APPLICATION = 'APPLICATION',
+  DATABASE = 'DATABASE',
+  SAAS = 'SAAS',
+  ENDPOINT = 'ENDPOINT',
+  NETWORK = 'NETWORK',
+  OTHER = 'OTHER',
+}
+
+export enum RiskLevel {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+export enum RiskStatus {
+  OPEN = 'OPEN',
+  MITIGATED = 'MITIGATED',
+  ACCEPTED = 'ACCEPTED',
+  TRANSFERRED = 'TRANSFERRED',
+}
+
+export enum ControlStatus {
+  IMPLEMENTED = 'IMPLEMENTED',
+  PARTIALLY_IMPLEMENTED = 'PARTIALLY_IMPLEMENTED',
+  NOT_IMPLEMENTED = 'NOT_IMPLEMENTED',
+}
+
 export enum Role {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ORG_ADMIN = 'ORG_ADMIN',

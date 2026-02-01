@@ -93,7 +93,7 @@ export async function controlRoutes(app: FastifyInstance) {
       const control = await prisma.control.create({
         data: {
           ...data,
-          organizationId: request.user.organizationId,
+          organizationId: (request.user as any).organizationId,
         },
         include: {
           evidence: true,
@@ -237,7 +237,7 @@ export async function controlRoutes(app: FastifyInstance) {
           fileUrl,
           hash: generateHash(),
           controlId: id,
-          collectedBy: request.user.sub,
+          collectedBy: (request.user as any).id,
           automated: automated || false,
         },
       });

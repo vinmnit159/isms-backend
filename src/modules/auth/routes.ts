@@ -86,8 +86,15 @@ export async function authRoutes(app: FastifyInstance) {
       // Find user
       const user = await prisma.user.findUnique({
         where: { email: data.email },
-        include: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          organizationId: true,
+          password: true,
           organization: true,
+          createdAt: true,
         },
       });
       
@@ -100,7 +107,7 @@ export async function authRoutes(app: FastifyInstance) {
       
       // Verify password
       const bcrypt = require('bcryptjs');
-      const isValidPassword = await bcrypt.compare(data.password, user.password);
+      const isValidPassword = await bcrypt.compare(data.password, user.password || '');
       
       if (!isValidPassword) {
         return reply.status(401).send({

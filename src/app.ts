@@ -14,10 +14,11 @@ import { controlRoutes } from './modules/controls/routes';
 import { evidenceRoutes } from './modules/evidence/routes';
 import { auditRoutes } from './modules/audits/routes';
 import { userRoutes } from './modules/users/routes';
-import { loggerPlugin } from './lib/logger';
 
 export const app: FastifyInstance = Fastify({
-  logger: loggerPlugin,
+  logger: {
+    level: env.LOG_LEVEL,
+  },
 });
 
 // Register plugins

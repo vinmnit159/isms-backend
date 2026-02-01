@@ -95,9 +95,13 @@ export async function riskRoutes(app: FastifyInstance) {
       
       const risk = await prisma.risk.create({
         data: {
-          ...data,
+          title: data.title,
+          description: data.description,
+          impact: data.impact,
+          likelihood: data.likelihood,
           riskScore,
-          organizationId: request.user.organizationId,
+          assetId: data.assetId,
+          status: 'OPEN' as any,
         },
         include: {
           asset: true,
