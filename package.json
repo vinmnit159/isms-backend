@@ -14,7 +14,9 @@
     "generate": "prisma generate",
     "seed": "tsx src/lib/seed.ts",
     "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint:fix": "eslint src --ext .ts --fix",
+    "railway:build": "npm run build",
+    "railway:deploy": "npm run migrate:deploy && npm start"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

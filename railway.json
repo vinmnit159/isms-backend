@@ -1,0 +1,17 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "npm run migrate:deploy && npm start",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE"
+  },
+  "services": {
+    "database": {
+      "type": "postgres",
+      "imageUrl": "postgres:15-alpine"
+    }
+  }
+}
