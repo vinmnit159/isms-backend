@@ -105,6 +105,19 @@ export async function setupRoutes(app: FastifyInstance) {
         });
       }
 
+      // Verify users were created successfully before generating JWT
+      if (!superAdmin || !superAdmin.id || !orgAdmin || !orgAdmin.id) {
+        return reply.status(500).send({
+          error: 'User creation failed',
+          message: 'Failed to create admin users',
+        });
+      }
+
+      console.log('✅ Users created:', { 
+        superAdmin: { id: superAdmin.id, email: superAdmin.email },
+        orgAdmin: { id: orgAdmin.id, email: orgAdmin.email }
+      });
+
       // Generate JWT token for super admin
       const token = app.jwt.sign({
         sub: superAdmin.id,
@@ -112,6 +125,7 @@ export async function setupRoutes(app: FastifyInstance) {
         role: superAdmin.role,
         organizationId: superAdmin.organizationId,
       });
+      console.log('✅ JWT token generated for:', superAdmin.email);
 
       // Log the setup activity
       await prisma.activityLog.create({
