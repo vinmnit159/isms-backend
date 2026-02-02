@@ -26,7 +26,10 @@ export const app: FastifyInstance = Fastify({
 // Register plugins
 app.register(helmet);
 app.register(cors, {
-  origin: env.CORS_ORIGIN,
+  origin: [
+    env.CORS_ORIGIN,
+    'https://isms.bitcoingames1346.com'
+  ],
   credentials: true,
 });
 app.register(jwtPlugin);
