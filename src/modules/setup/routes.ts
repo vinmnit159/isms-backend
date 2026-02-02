@@ -157,6 +157,7 @@ export async function setupRoutes(app: FastifyInstance) {
         });
       } catch (responseError) {
         console.error('❌ Response sending failed:', responseError);
+        console.error('Response error details:', responseError);
         return reply.status(500).send({
           error: 'Setup completion failed',
           message: 'Failed to send success response',
