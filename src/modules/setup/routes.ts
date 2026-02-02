@@ -165,7 +165,7 @@ export async function setupRoutes(app: FastifyInstance) {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      app.log.error('Setup error details:', {
+      console.error('Setup error details:', {
         message: errorMessage,
         stack: error instanceof Error ? error.stack : 'No stack trace',
         code: (error as any)?.code,
