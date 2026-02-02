@@ -119,13 +119,22 @@ export async function setupRoutes(app: FastifyInstance) {
       });
 
       // Generate JWT token for super admin
-      const token = app.jwt.sign({
-        sub: superAdmin.id,
-        email: superAdmin.email,
-        role: superAdmin.role,
-        organizationId: superAdmin.organizationId,
-      });
-      console.log('✅ JWT token generated for:', superAdmin.email);
+      let token;
+      try {
+        token = app.jwt.sign({
+          sub: superAdmin.id,
+          email: superAdmin.email,
+          role: superAdmin.role,
+          organizationId: superAdmin.organizationId,
+        });
+        console.log('✅ JWT token generated for:', superAdmin.email);
+      } catch (jwtError) {
+        console.error('❌ JWT generation failed:', jwtError);
+        return reply.status(500).send({
+          error: 'Token generation failed',
+          message: 'Failed to generate authentication token',
+        });
+      }
 
       // Log the setup activity
       await prisma.activityLog.create({
