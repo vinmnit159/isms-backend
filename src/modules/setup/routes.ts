@@ -112,7 +112,8 @@ export async function setupRoutes(app: FastifyInstance) {
     } catch (error) {
       app.log.error(error);
       
-      if (error.code === 'P2002') {
+      const prismaError = error as any;
+      if (prismaError?.code === 'P2002') {
         return reply.status(400).send({
           error: 'Duplicate entry',
           message: 'An organization or user with this information already exists',

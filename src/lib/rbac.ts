@@ -30,6 +30,14 @@ export enum ControlStatus {
   NOT_IMPLEMENTED = 'NOT_IMPLEMENTED',
 }
 
+export enum EvidenceType {
+  FILE = 'FILE',
+  LINK = 'LINK',
+  SCREENSHOT = 'SCREENSHOT',
+  LOG = 'LOG',
+  AUTOMATED = 'AUTOMATED',
+}
+
 export enum Role {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ORG_ADMIN = 'ORG_ADMIN',

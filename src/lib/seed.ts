@@ -280,7 +280,6 @@ export async function seedDatabase(prisma: PrismaClient) {
             name: policy.name,
             version: policy.version,
             status: policy.status,
-            description: policy.description,
             documentUrl: `https://docs.demo.com/policies/${policy.name.toLowerCase().replace(/\s+/g, '-')}`,
             approvedBy: superAdmin.id,
             approvedAt: new Date(),
@@ -328,7 +327,7 @@ export async function seedDatabase(prisma: PrismaClient) {
       prisma.auditFinding.create({
         data: {
           auditId: audit.id,
-          controlId: controls[0].id, // First control
+          controlId: controls[0]?.id || '', // First control
           severity: 'MAJOR' as any,
           description: 'Control not properly implemented according to policy requirements',
           remediation: 'Implement control procedures and document evidence',
@@ -338,7 +337,7 @@ export async function seedDatabase(prisma: PrismaClient) {
       prisma.auditFinding.create({
         data: {
           auditId: audit.id,
-          controlId: controls[1].id, // Second control
+          controlId: controls[1]?.id || '', // Second control
           severity: 'MINOR' as any,
           description: 'Minor documentation gaps found',
           remediation: 'Update documentation and maintain records',
