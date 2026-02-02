@@ -121,8 +121,8 @@ export async function setupRoutes(app: FastifyInstance) {
       // Generate JWT token for super admin
       let token;
       try {
-        // Small delay to ensure JWT plugin is fully initialized
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Longer delay to ensure JWT plugin is fully initialized
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         token = app.jwt.sign({
           sub: superAdmin.id,
