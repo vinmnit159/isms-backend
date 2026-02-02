@@ -141,12 +141,27 @@ export async function setupRoutes(app: FastifyInstance) {
           organizationId: superAdmin.organizationId,
         });
         console.log('✅ JWT token generated for:', superAdmin.email);
-      } catch (jwtError) {
-        console.error('❌ JWT generation failed:', jwtError);
-        return reply.status(500).send({
-          error: 'Token generation failed',
-          message: 'Failed to generate authentication token',
+        
+        // Success response
+      try {
+        return reply.status(201).send({
+          user: {
+            id: superAdmin.id,
+            email: superAdmin.email,
+            name: superAdmin.name,
+            role: superAdmin.role,
+            organizationId: superAdmin.organizationId,
+          },
+          token,
+          setupComplete: true,
         });
+      } catch (responseError) {
+        console.error('❌ Response sending failed:', responseError);
+        return reply.status(500).send({
+          error: 'Setup completion failed',
+          message: 'Failed to send success response',
+        });
+      }
       }
 
       // Log the setup activity
