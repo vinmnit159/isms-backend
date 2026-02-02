@@ -164,9 +164,10 @@ export async function setupRoutes(app: FastifyInstance) {
       });
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       app.log.error('Setup error details:', {
-        message: error.message,
-        stack: error.stack,
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : 'No stack trace',
         code: (error as any)?.code,
         type: error.constructor.name
       });
@@ -181,7 +182,7 @@ export async function setupRoutes(app: FastifyInstance) {
 
       return reply.status(500).send({
         error: 'Setup failed',
-        message: `Failed to set up organization and users: ${error.message}`,
+        message: `Failed to set up organization and users: ${errorMessage}`,
       });
     }
   });
