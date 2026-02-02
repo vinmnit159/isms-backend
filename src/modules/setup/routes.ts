@@ -94,7 +94,16 @@ export async function setupRoutes(app: FastifyInstance) {
       });
 
       // 4. Seed ISO controls for the organization
-      await seedDatabase(prisma);
+      try {
+        await seedDatabase(prisma);
+        console.log('✅ Database seeded successfully');
+      } catch (seedError) {
+        console.error('❌ Database seeding failed:', seedError);
+        return reply.status(500).send({
+          error: 'Database seeding failed',
+          message: 'Failed to seed ISO controls and policies',
+        });
+      }
 
       // Generate JWT token for super admin
       const token = app.jwt.sign({
@@ -141,7 +150,12 @@ export async function setupRoutes(app: FastifyInstance) {
       });
 
     } catch (error) {
-      app.log.error(error);
+      app.log.error('Setup error details:', {
+        message: error.message,
+        stack: error.stack,
+        code: (error as any)?.code,
+        type: error.constructor.name
+      });
       
       const prismaError = error as any;
       if (prismaError?.code === 'P2002') {
@@ -153,7 +167,7 @@ export async function setupRoutes(app: FastifyInstance) {
 
       return reply.status(500).send({
         error: 'Setup failed',
-        message: 'Failed to set up organization and users',
+        message: `Failed to set up organization and users: ${error.message}`,
       });
     }
   });
