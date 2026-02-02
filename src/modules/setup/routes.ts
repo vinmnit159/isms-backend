@@ -41,6 +41,27 @@ export async function setupRoutes(app: FastifyInstance) {
         });
       }
 
+      // Check for duplicate emails (case insensitive)
+      const existingAdminEmail = await prisma.user.findFirst({
+        where: { email: data.adminEmail.toLowerCase() }
+      });
+      const existingOrgAdminEmail = await prisma.user.findFirst({
+        where: { email: data.orgAdminEmail.toLowerCase() }
+      });
+      
+      if (existingAdminEmail || existingOrgAdminEmail) {
+        return reply.status(400).send({
+          error: 'Duplicate email',
+          message: 'Email address already exists. Please use a different email.',
+        });
+      }
+      if (existingUser) {
+        return reply.status(400).send({
+          error: 'System already initialized',
+          message: 'The system has already been set up. Please contact your administrator.',
+        });
+      }
+
       // 1. Create Organization
       const organization = await prisma.organization.create({
         data: {
@@ -52,7 +73,7 @@ export async function setupRoutes(app: FastifyInstance) {
       const hashedSuperAdminPassword = await bcrypt.hash(data.adminPassword, authConfig.bcryptRounds);
       const superAdmin = await prisma.user.create({
         data: {
-          email: data.adminEmail,
+          email: data.adminEmail.toLowerCase(),
           password: hashedSuperAdminPassword,
           name: data.adminName,
           role: Role.SUPER_ADMIN,
@@ -64,7 +85,7 @@ export async function setupRoutes(app: FastifyInstance) {
       const hashedOrgAdminPassword = await bcrypt.hash(data.orgAdminPassword, authConfig.bcryptRounds);
       const orgAdmin = await prisma.user.create({
         data: {
-          email: data.orgAdminEmail,
+          email: data.orgAdminEmail.toLowerCase(),
           password: hashedOrgAdminPassword,
           name: data.orgAdminName,
           role: Role.ORG_ADMIN,
