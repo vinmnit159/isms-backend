@@ -164,13 +164,7 @@ export async function setupRoutes(app: FastifyInstance) {
       });
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Setup error details:', {
-        message: errorMessage,
-        stack: error instanceof Error ? error.stack : 'No stack trace',
-        code: (error as any)?.code,
-        type: (error.constructor as any)?.name || 'Unknown'
-      });
+      console.error('Setup failed:', error);
       
       const prismaError = error as any;
       if (prismaError?.code === 'P2002') {
@@ -182,7 +176,7 @@ export async function setupRoutes(app: FastifyInstance) {
 
       return reply.status(500).send({
         error: 'Setup failed',
-        message: `Failed to set up organization and users: ${errorMessage}`,
+        message: 'Failed to set up organization and users',
       });
     }
   });
