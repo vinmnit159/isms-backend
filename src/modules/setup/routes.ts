@@ -10,10 +10,20 @@ const signupWithOrganizationSchema = z.object({
   organizationName: z.string().min(2, 'Organization name must be at least 2 characters'),
   adminName: z.string().min(2, 'Admin name must be at least 2 characters'),
   adminEmail: z.string().email('Invalid email format'),
-  adminPassword: z.string().min(authConfig.passwordMinLength, `Password must be at least ${authConfig.passwordMinLength} characters`),
+  adminPassword: z.string()
+    .min(authConfig.passwordMinLength, `Password must be at least ${authConfig.passwordMinLength} characters`)
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
   orgAdminName: z.string().min(2, 'Org admin name must be at least 2 characters'),
   orgAdminEmail: z.string().email('Invalid email format'),
-  orgAdminPassword: z.string().min(authConfig.passwordMinLength, `Password must be at least ${authConfig.passwordMinLength} characters`),
+  orgAdminPassword: z.string()
+    .min(authConfig.passwordMinLength, `Password must be at least ${authConfig.passwordMinLength} characters`)
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
 });
 
 export async function setupRoutes(app: FastifyInstance) {
