@@ -169,7 +169,7 @@ export async function setupRoutes(app: FastifyInstance) {
         message: errorMessage,
         stack: error instanceof Error ? error.stack : 'No stack trace',
         code: (error as any)?.code,
-        type: error.constructor.name
+        type: (error.constructor as any)?.name || 'Unknown'
       });
       
       const prismaError = error as any;
