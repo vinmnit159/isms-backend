@@ -121,9 +121,19 @@ export async function setupRoutes(app: FastifyInstance) {
       // Generate JWT token for super admin
       let token;
       try {
+        // Check if JWT plugin is available
+        if (!app.jwt) {
+          console.error('❌ JWT plugin not available');
+          return reply.status(500).send({
+            error: 'JWT plugin not available',
+            message: 'JWT plugin is not properly registered',
+          });
+        }
+
         // Very long delay to ensure JWT plugin is fully initialized
         await new Promise(resolve => setTimeout(resolve, 2000));
         
+        console.log('🔍 JWT plugin available, attempting token generation');
         token = app.jwt.sign({
           sub: superAdmin.id,
           email: superAdmin.email,
