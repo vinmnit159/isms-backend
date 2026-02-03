@@ -165,6 +165,11 @@ export async function seedDatabase(prisma: PrismaClient, organizationId: string)
     console.log('📋 Seeding ISO 27001 controls...');
     for (let i = 0; i < ISO_ANNEX_A_CONTROLS.length; i++) {
       const control = ISO_ANNEX_A_CONTROLS[i];
+      if (!control) {
+        console.log(`⚠️ Skipping undefined control at index ${i}`);
+        continue;
+      }
+      
       await prisma.control.create({
         data: {
           isoReference: control.isoReference,
