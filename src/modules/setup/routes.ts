@@ -154,6 +154,12 @@ export async function setupRoutes(app: FastifyInstance) {
           token,
           setupComplete: true,
         });
+      } catch (jwtError) {
+        console.error('❌ JWT generation failed:', jwtError);
+        return reply.status(500).send({
+          error: 'JWT generation failed',
+          message: 'Failed to generate authentication token',
+        });
       }
 
       // Log the setup activity
