@@ -93,9 +93,9 @@ export async function setupRoutes(app: FastifyInstance) {
         },
       });
 
-      // 4. Seed ISO controls for the organization
+      // 4. Seed ISO controls and policies for the organization
       try {
-        await seedDatabase(prisma);
+        await seedDatabase(prisma, organization.id);
         console.log('✅ Database seeded successfully');
       } catch (seedError) {
         console.error('❌ Database seeding failed:', seedError);

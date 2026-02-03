@@ -148,130 +148,36 @@ export const DEFAULT_POLICIES = [
   }
 ];
 
-export async function seedDatabase(prisma: PrismaClient) {
+export async function seedDatabase(prisma: PrismaClient, organizationId: string) {
   console.log('🌱 Starting database seeding...');
 
   try {
-    // Check if controls already exist (better indicator of complete seeding)
-    const existingControls = await prisma.control.findFirst();
+    // Check if controls already exist for this organization
+    const existingControls = await prisma.control.findFirst({
+      where: { organizationId }
+    });
     if (existingControls) {
-      console.log('📦 Database already seeded with controls. Skipping...');
+      console.log('📦 Organization already has controls. Skipping seeding...');
       return;
     }
 
-    // 1. Create Organization
-    console.log('🏢 Creating organization...');
-    const organization = await prisma.organization.create({
-      data: {
-        name: "Demo Organization",
-      },
-    });
-
-    // 2. Create SUPER_ADMIN user (for signup flow)
-    console.log('👤 Creating SUPER_ADMIN user...');
-    const hashedPassword = await bcrypt.hash('admin123', 12);
-    const superAdmin = await prisma.user.create({
-      data: {
-        email: 'admin@demo.com',
-        password: hashedPassword,
-        name: 'System Administrator',
-        role: Role.SUPER_ADMIN,
-        organizationId: organization.id,
-      },
-    });
-
-    // 3. Create ORG_ADMIN user
-    console.log('👤 Creating ORG_ADMIN user...');
-    const orgAdminPassword = await bcrypt.hash('orgadmin123', 12);
-    const orgAdmin = await prisma.user.create({
-      data: {
-        email: 'orgadmin@demo.com',
-        password: orgAdminPassword,
-        name: 'Organization Administrator',
-        role: Role.ORG_ADMIN,
-        organizationId: organization.id,
-      },
-    });
-
-    // 4. Create sample assets
-    console.log('💻 Creating sample assets...');
-    const assets = await Promise.all([
-      prisma.asset.create({
-        data: {
-          name: "Primary Database Server",
-          type: AssetType.DATABASE,
-          criticality: RiskLevel.CRITICAL,
-          description: "Main PostgreSQL database server",
-          ownerId: superAdmin.id,
-          organizationId: organization.id,
-        },
-      }),
-      prisma.asset.create({
-        data: {
-          name: "Web Application Server",
-          type: AssetType.APPLICATION,
-          criticality: RiskLevel.HIGH,
-          description: "Frontend web application server",
-          ownerId: orgAdmin.id,
-          organizationId: organization.id,
-        },
-      }),
-      prisma.asset.create({
-        data: {
-          name: "Cloud Infrastructure",
-          type: AssetType.CLOUD,
-          criticality: RiskLevel.HIGH,
-          description: "AWS cloud resources and services",
-          ownerId: superAdmin.id,
-          organizationId: organization.id,
-        },
-      }),
-    ]);
-
-    // 5. Create sample risks
-    console.log('⚠️ Creating sample risks...');
-    await Promise.all([
-      prisma.risk.create({
-        data: {
-          title: "Unauthorized Data Access",
-          description: "Risk of unauthorized access to sensitive data",
-          impact: RiskLevel.HIGH,
-          likelihood: RiskLevel.MEDIUM,
-          riskScore: 12, // 3 * 4
-          status: RiskStatus.OPEN,
-          assetId: assets[0].id,
-        },
-      }),
-      prisma.risk.create({
-        data: {
-          title: "System Downtime",
-          description: "Risk of extended system downtime affecting operations",
-          impact: RiskLevel.MEDIUM,
-          likelihood: RiskLevel.LOW,
-          riskScore: 2, // 2 * 1
-          status: RiskStatus.OPEN,
-          assetId: assets[1].id,
-        },
-      }),
-    ]);
-
-    // 6. Seed ISO controls
+    // Seed ISO controls for the organization
     console.log('📋 Seeding ISO 27001 controls...');
-    const controls = await Promise.all(
-      ISO_ANNEX_A_CONTROLS.map((control, index) =>
+    await Promise.all(
+      ISO_ANNEX_A_CONTROLS.map((control) =>
         prisma.control.create({
           data: {
             isoReference: control.isoReference,
             title: control.title,
             description: control.description,
             status: ControlStatus.NOT_IMPLEMENTED,
-            organizationId: organization.id,
+            organizationId: organizationId,
           },
         })
       )
     );
 
-    // 7. Create default policies
+    // Create default policies for the organization
     console.log('📄 Creating default policies...');
     await Promise.all(
       DEFAULT_POLICIES.map((policy) =>
@@ -280,78 +186,16 @@ export async function seedDatabase(prisma: PrismaClient) {
             name: policy.name,
             version: policy.version,
             status: policy.status,
-            documentUrl: `https://docs.demo.com/policies/${policy.name.toLowerCase().replace(/\s+/g, '-')}`,
-            approvedBy: superAdmin.id,
-            approvedAt: new Date(),
-            organizationId: organization.id,
+            documentUrl: `https://docs.${organizationId}.com/policies/${policy.name.toLowerCase().replace(/\s+/g, '-')}`,
+            approvedBy: null, // Will be approved by organization admin later
+            approvedAt: null, // Will be approved by organization admin later
+            organizationId: organizationId,
           },
         })
       )
     );
 
-    // 8. Create sample evidence for key controls
-    console.log('📎 Creating sample evidence...');
-    const keyControls = controls.slice(0, 5); // First 5 controls
-    await Promise.all(
-      keyControls.map((control, index) =>
-        prisma.evidence.create({
-          data: {
-            type: EvidenceType.FILE,
-            fileName: `control-evidence-${index + 1}.pdf`,
-            fileUrl: `https://docs.demo.com/evidence/control-${index + 1}`,
-            hash: `hash-${index + 1}`,
-            controlId: control.id,
-            collectedBy: superAdmin.id,
-            automated: false,
-          },
-        })
-      )
-    );
-
-    // 9. Create sample audit
-    console.log('🔍 Creating sample audit...');
-    const audit = await prisma.audit.create({
-      data: {
-        type: 'INTERNAL' as any,
-        auditor: 'Internal Security Team',
-        scope: 'ISO 27001 Implementation Review',
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-        organizationId: organization.id,
-      },
-    });
-
-    // 10. Create sample audit findings
-    console.log('📝 Creating sample audit findings...');
-    await Promise.all([
-      prisma.auditFinding.create({
-        data: {
-          auditId: audit.id,
-          controlId: controls[0]?.id || '', // First control
-          severity: 'MAJOR' as any,
-          description: 'Control not properly implemented according to policy requirements',
-          remediation: 'Implement control procedures and document evidence',
-          status: 'OPEN',
-        },
-      }),
-      prisma.auditFinding.create({
-        data: {
-          auditId: audit.id,
-          controlId: controls[1]?.id || '', // Second control
-          severity: 'MINOR' as any,
-          description: 'Minor documentation gaps found',
-          remediation: 'Update documentation and maintain records',
-          status: 'OPEN',
-        },
-      }),
-    ]);
-
-    console.log('✅ Database seeded successfully!');
-    console.log('\n🔑 Demo Login Credentials:');
-    console.log('================================');
-    console.log('SUPER_ADMIN: admin@demo.com / admin123');
-    console.log('ORG_ADMIN:  orgadmin@demo.com / orgadmin123');
-    console.log('================================\n');
+    console.log('✅ Organization database seeded successfully!');
 
   } catch (error) {
     console.error('❌ Error seeding database:', error);
