@@ -161,25 +161,20 @@ export async function seedDatabase(prisma: PrismaClient, organizationId: string)
       return;
     }
 
-    // Seed ISO controls for the organization (in batches to prevent memory issues)
+    // Seed ISO controls for the organization (one by one to prevent memory issues)
     console.log('📋 Seeding ISO 27001 controls...');
-    const batchSize = 10;
-    for (let i = 0; i < ISO_ANNEX_A_CONTROLS.length; i += batchSize) {
-      const batch = ISO_ANNEX_A_CONTROLS.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map((control) =>
-          prisma.control.create({
-            data: {
-              isoReference: control.isoReference,
-              title: control.title,
-              description: control.description,
-              status: ControlStatus.NOT_IMPLEMENTED,
-              organizationId: organizationId,
-            },
-          })
-        )
-      );
-      console.log(`✅ Seeded controls ${i + 1}-${Math.min(i + batchSize, ISO_ANNEX_A_CONTROLS.length)}`);
+    for (let i = 0; i < ISO_ANNEX_A_CONTROLS.length; i++) {
+      const control = ISO_ANNEX_A_CONTROLS[i];
+      await prisma.control.create({
+        data: {
+          isoReference: control.isoReference,
+          title: control.title,
+          description: control.description,
+          status: ControlStatus.NOT_IMPLEMENTED,
+          organizationId: organizationId,
+        },
+      });
+      console.log(`✅ Seeded control ${i + 1}/${ISO_ANNEX_A_CONTROLS.length}: ${control.isoReference}`);
     }
 
     // Create default policies for the organization
