@@ -122,7 +122,7 @@ export async function setupRoutes(app: FastifyInstance) {
       let token;
       try {
         console.log('🔍 Attempting JWT token generation');
-        token = reply.jwtSign({
+        token = app.jwt.sign({
           sub: superAdmin.id,
           email: superAdmin.email,
           role: superAdmin.role,
