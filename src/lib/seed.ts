@@ -152,10 +152,10 @@ export async function seedDatabase(prisma: PrismaClient) {
   console.log('🌱 Starting database seeding...');
 
   try {
-    // Check if data already exists
-    const existingOrg = await prisma.organization.findFirst();
-    if (existingOrg) {
-      console.log('📦 Database already seeded. Skipping...');
+    // Check if controls already exist (better indicator of complete seeding)
+    const existingControls = await prisma.control.findFirst();
+    if (existingControls) {
+      console.log('📦 Database already seeded with controls. Skipping...');
       return;
     }
 
