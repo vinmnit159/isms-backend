@@ -182,23 +182,28 @@ export async function seedDatabase(prisma: PrismaClient, organizationId: string)
       console.log(`✅ Seeded control ${i + 1}/${ISO_ANNEX_A_CONTROLS.length}: ${control.isoReference}`);
     }
 
-    // Create default policies for the organization
+    // Create default policies for the organization (one by one to prevent memory issues)
     console.log('📄 Creating default policies...');
-    await Promise.all(
-      DEFAULT_POLICIES.map((policy) =>
-        prisma.policy.create({
-          data: {
-            name: policy.name,
-            version: policy.version,
-            status: policy.status,
-            documentUrl: `https://docs.${organizationId}.com/policies/${policy.name.toLowerCase().replace(/\s+/g, '-')}`,
-            approvedBy: null, // Will be approved by organization admin later
-            approvedAt: null, // Will be approved by organization admin later
-            organizationId: organizationId,
-          },
-        })
-      )
-    );
+    for (let i = 0; i < DEFAULT_POLICIES.length; i++) {
+      const policy = DEFAULT_POLICIES[i];
+      if (!policy) {
+        console.log(`⚠️ Skipping undefined policy at index ${i}`);
+        continue;
+      }
+      
+      await prisma.policy.create({
+        data: {
+          name: policy.name,
+          version: policy.version,
+          status: policy.status,
+          documentUrl: `https://docs.${organizationId}.com/policies/${policy.name.toLowerCase().replace(/\s+/g, '-')}`,
+          approvedBy: null, // Will be approved by organization admin later
+          approvedAt: null, // Will be approved by organization admin later
+          organizationId: organizationId,
+        },
+      });
+      console.log(`✅ Created policy ${i + 1}/${DEFAULT_POLICIES.length}: ${policy.name}`);
+    }
 
     console.log('✅ Organization database seeded successfully!');
 
