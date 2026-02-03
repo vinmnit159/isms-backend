@@ -143,7 +143,6 @@ export async function setupRoutes(app: FastifyInstance) {
         console.log('✅ JWT token generated for:', superAdmin.email);
         
         // Success response
-      try {
         return reply.status(201).send({
           user: {
             id: superAdmin.id,
@@ -155,14 +154,6 @@ export async function setupRoutes(app: FastifyInstance) {
           token,
           setupComplete: true,
         });
-      } catch (responseError) {
-        console.error('❌ Response sending failed:', responseError);
-        console.error('Response error details:', responseError);
-        return reply.status(500).send({
-          error: 'Setup completion failed',
-          message: 'Failed to send success response',
-        });
-      }
       }
 
       // Log the setup activity
