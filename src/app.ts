@@ -1,11 +1,11 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import fastifyJwt from '@fastify/jwt';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 
 import { env } from './config/env';
-import { jwtPlugin } from './plugins/jwt';
 import { swaggerPlugin } from './plugins/swagger';
 import { authenticate } from './lib/auth-middleware';
 import { authRoutes } from './modules/auth/routes';
@@ -32,7 +32,16 @@ app.register(cors, {
   ],
   credentials: true,
 });
-app.register(jwtPlugin);
+
+// Register JWT directly on the root app instance (no encapsulation wrapper)
+// so app.jwt.sign() is available in all route handlers
+app.register(fastifyJwt, {
+  secret: env.JWT_SECRET,
+  sign: {
+    expiresIn: env.JWT_EXPIRES_IN,
+  },
+});
+
 app.register(swaggerPlugin);
 
 // Add authentication decorator
