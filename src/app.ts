@@ -16,6 +16,7 @@ import { evidenceRoutes } from './modules/evidence/routes';
 import { auditRoutes } from './modules/audits/routes';
 import { userRoutes } from './modules/users/routes';
 import { setupRoutes } from './modules/setup/routes';
+import { policyRoutes } from './modules/policies/routes';
 
 export const app: FastifyInstance = Fastify({
   logger: {
@@ -56,6 +57,7 @@ app.register(evidenceRoutes, { prefix: '/api/evidence' });
 app.register(auditRoutes, { prefix: '/api/audits' });
 app.register(userRoutes, { prefix: '/api/users' });
 app.register(setupRoutes, { prefix: '/api/setup' });
+app.register(policyRoutes, { prefix: '/api/policies' });
 
 // Health check
 app.get('/health', async () => {
