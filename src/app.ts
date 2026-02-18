@@ -2,7 +2,6 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import fastifyJwt from '@fastify/jwt';
-import fastifyOauth2 from '@fastify/oauth2';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 
@@ -47,27 +46,12 @@ app.register(fastifyJwt, {
 
 app.register(swaggerPlugin);
 
-// Register Google OAuth2 plugin
-app.register(fastifyOauth2, {
-  name: 'googleOAuth2',
-  scope: ['openid', 'email', 'profile'],
-  credentials: {
-    client: {
-      id: env.GOOGLE_CLIENT_ID,
-      secret: env.GOOGLE_CLIENT_SECRET,
-    },
-    auth: fastifyOauth2.GOOGLE_CONFIGURATION,
-  },
-  startRedirectPath: '/auth/google',
-  callbackUri: env.GOOGLE_CALLBACK_URL,
-});
-
 // Add authentication decorator
 app.decorate('authenticate', authenticate);
 
 // Register routes
 app.register(authRoutes, { prefix: '/api/auth' });
-// Google OAuth callback — registered directly on root so googleOAuth2 decorator is in scope
+// Google OAuth — manual implementation (simple-oauth2), Fastify 4 compatible
 registerGoogleCallback(app);
 app.register(assetRoutes, { prefix: '/api/assets' });
 app.register(riskRoutes, { prefix: '/api/risks' });

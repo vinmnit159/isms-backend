@@ -1,37 +1,111 @@
 import { FastifyInstance } from 'fastify';
+import { AuthorizationCode } from 'simple-oauth2';
+import { randomBytes } from 'crypto';
 import { env } from '../../config/env';
 import { prisma } from '../../lib/prisma';
 
+// In-memory state store (maps state → expiry). Fine for a single-instance
+// server. For multi-instance deployments, swap for Redis/DB.
+const pendingStates = new Map<string, number>();
+
+function createOAuthClient() {
+  return new AuthorizationCode({
+    client: {
+      id: env.GOOGLE_CLIENT_ID,
+      secret: env.GOOGLE_CLIENT_SECRET,
+    },
+    auth: {
+      tokenHost: 'https://oauth2.googleapis.com',
+      tokenPath: '/token',
+      authorizeHost: 'https://accounts.google.com',
+      authorizePath: '/o/oauth2/v2/auth',
+    },
+  });
+}
+
 /**
- * Register the Google OAuth callback route directly on the root Fastify
- * instance so the `googleOAuth2` decorator (added by @fastify/oauth2) is
- * available.
+ * Register Google OAuth routes directly on the root Fastify instance.
  *
- * NOTE: @fastify/oauth2 automatically registers GET /auth/google (the
- * startRedirectPath) — we must NOT re-register that path ourselves.
- * We only need to handle the callback.
- *
- * Registered route:
- *   GET /auth/google/callback
- *   → must exactly match the redirect_uri in Google Cloud Console
+ * GET /auth/google          → redirect to Google consent screen
+ * GET /auth/google/callback → exchange code, upsert user, issue JWT
  */
 export function registerGoogleCallback(app: FastifyInstance) {
-  app.get('/auth/google/callback', async (request: any, reply: any) => {
+  // ── Initiate ───────────────────────────────────────────────────────────────
+  app.get('/auth/google', async (_request, reply) => {
+    const client = createOAuthClient();
+    const state = randomBytes(16).toString('hex');
+
+    // Store state with a 10-minute expiry
+    pendingStates.set(state, Date.now() + 10 * 60 * 1000);
+
+    // Cleanup expired states
+    for (const [s, exp] of pendingStates) {
+      if (Date.now() > exp) pendingStates.delete(s);
+    }
+
+    const authorizationUri = client.authorizeURL({
+      redirect_uri: env.GOOGLE_CALLBACK_URL,
+      scope: 'openid email profile',
+      state,
+      access_type: 'offline',
+      prompt: 'select_account',
+    } as any);
+
+    return reply.redirect(authorizationUri);
+  });
+
+  // ── Callback ───────────────────────────────────────────────────────────────
+  app.get('/auth/google/callback', async (request: any, reply) => {
     try {
-      // Exchange the auth code for tokens
-      const { token } =
-        await (app as any).googleOAuth2.getAccessTokenFromAuthorizationCodeFlow(request);
+      const { code, state, error } = request.query as {
+        code?: string;
+        state?: string;
+        error?: string;
+      };
 
-      const accessToken: string = token.access_token as string;
+      // Google returned an error (e.g. user denied consent)
+      if (error) {
+        app.log.warn('Google OAuth error: ' + error);
+        return reply.redirect(`${env.FRONTEND_URL}/login?error=oauth_denied`);
+      }
 
-      // Fetch the user's Google profile
+      // Validate state to prevent CSRF
+      if (!state || !pendingStates.has(state)) {
+        app.log.warn('Invalid OAuth state: ' + state);
+        return reply.redirect(`${env.FRONTEND_URL}/login?error=invalid_state`);
+      }
+      if (Date.now() > pendingStates.get(state)!) {
+        pendingStates.delete(state);
+        return reply.redirect(`${env.FRONTEND_URL}/login?error=state_expired`);
+      }
+      pendingStates.delete(state);
+
+      if (!code) {
+        return reply.redirect(`${env.FRONTEND_URL}/login?error=no_code`);
+      }
+
+      // Exchange code for tokens
+      const client = createOAuthClient();
+      const tokenResult = await client.getToken({
+        code,
+        redirect_uri: env.GOOGLE_CALLBACK_URL,
+      });
+
+      const accessToken = (tokenResult.token as any).access_token as string;
+
+      if (!accessToken) {
+        app.log.error('No access_token in Google token response');
+        return reply.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
+      }
+
+      // Fetch Google user profile
       const profileRes = await fetch(
         'https://www.googleapis.com/oauth2/v3/userinfo',
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
 
       if (!profileRes.ok) {
-        app.log.error('Failed to fetch Google profile, status: ' + profileRes.status);
+        app.log.error('Google userinfo failed: ' + profileRes.status);
         return reply.redirect(`${env.FRONTEND_URL}/login?error=google_profile_failed`);
       }
 
@@ -47,8 +121,8 @@ export function registerGoogleCallback(app: FastifyInstance) {
         return reply.redirect(`${env.FRONTEND_URL}/login?error=no_email`);
       }
 
-      // ── Upsert user ────────────────────────────────────────────────────────
-      // 1. Match by googleId  2. Match by email (link account)  3. Create new
+      // ── Upsert user ─────────────────────────────────────────────────────────
+      // 1. Match by googleId  2. Match by email (link existing account)  3. Create
       let user = await prisma.user.findUnique({
         where: { googleId: profile.sub },
         include: { organization: true },
@@ -61,7 +135,6 @@ export function registerGoogleCallback(app: FastifyInstance) {
         });
 
         if (byEmail) {
-          // Link Google ID to the existing password-based account
           user = await prisma.user.update({
             where: { id: byEmail.id },
             data: {
@@ -71,14 +144,12 @@ export function registerGoogleCallback(app: FastifyInstance) {
             include: { organization: true },
           });
         } else {
-          // Brand-new Google user — assign to the first org in the DB
           const defaultOrg = await prisma.organization.findFirst();
           if (!defaultOrg) {
             return reply.redirect(
               `${env.FRONTEND_URL}/register?error=no_org&email=${encodeURIComponent(profile.email)}`,
             );
           }
-
           user = await prisma.user.create({
             data: {
               email: profile.email,
@@ -86,14 +157,13 @@ export function registerGoogleCallback(app: FastifyInstance) {
               googleId: profile.sub,
               role: 'VIEWER',
               organizationId: defaultOrg.id,
-              // password intentionally null — Google SSO users don't need one
             },
             include: { organization: true },
           });
         }
       }
 
-      // ── Issue our own JWT ──────────────────────────────────────────────────
+      // ── Issue our JWT ────────────────────────────────────────────────────────
       const jwt = app.jwt.sign({
         sub: user.id,
         email: user.email,
@@ -113,7 +183,6 @@ export function registerGoogleCallback(app: FastifyInstance) {
         }),
       );
 
-      // Redirect to the frontend callback page with the JWT
       return reply.redirect(
         `${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(jwt)}&user=${userPayload}`,
       );
