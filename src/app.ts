@@ -52,7 +52,7 @@ app.decorate('authenticate', authenticate);
 // Register routes
 app.register(authRoutes, { prefix: '/api/auth' });
 // Google OAuth — manual implementation (simple-oauth2), Fastify 4 compatible
-registerGoogleCallback(app);
+app.register(registerGoogleCallback);
 app.register(assetRoutes, { prefix: '/api/assets' });
 app.register(riskRoutes, { prefix: '/api/risks' });
 app.register(controlRoutes, { prefix: '/api/controls' });

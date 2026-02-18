@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import fp from 'fastify-plugin';
 import { AuthorizationCode } from 'simple-oauth2';
 import { randomBytes } from 'crypto';
 import { env } from '../../config/env';
@@ -24,12 +25,13 @@ function createOAuthClient() {
 }
 
 /**
- * Register Google OAuth routes directly on the root Fastify instance.
+ * Register Google OAuth routes as a fastify-plugin (skips encapsulation so
+ * app.jwt is visible, and participates correctly in Fastify 4 lifecycle).
  *
  * GET /auth/google          → redirect to Google consent screen
  * GET /auth/google/callback → exchange code, upsert user, issue JWT
  */
-export function registerGoogleCallback(app: FastifyInstance) {
+async function googlePlugin(app: FastifyInstance) {
   // ── Initiate ───────────────────────────────────────────────────────────────
   app.get('/auth/google', async (_request, reply) => {
     const client = createOAuthClient();
@@ -192,3 +194,8 @@ export function registerGoogleCallback(app: FastifyInstance) {
     }
   });
 }
+
+export const registerGoogleCallback = fp(googlePlugin, {
+  name: 'google-oauth',
+  fastify: '4.x',
+});
