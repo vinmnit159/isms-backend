@@ -118,9 +118,14 @@ export async function setupRoutes(app: FastifyInstance) {
         orgAdmin: { id: orgAdmin.id, email: orgAdmin.email }
       });
 
-      // JWT generation temporarily removed to focus on database seeding
-      const token = null;
-      console.log('🔍 Skipping JWT generation for now');
+      // Generate JWT for the super admin after successful setup
+      const token = app.jwt.sign({
+        sub: superAdmin.id,
+        email: superAdmin.email,
+        role: superAdmin.role,
+        organizationId: superAdmin.organizationId,
+      });
+      console.log('✅ JWT token generated for super admin');
 
       // Log the setup activity
       await prisma.activityLog.create({
@@ -153,6 +158,7 @@ export async function setupRoutes(app: FastifyInstance) {
             name: orgAdmin.name,
             role: orgAdmin.role,
           },
+          token,
           setupComplete: true,
         },
       });
