@@ -89,7 +89,8 @@ model Organization {
 model User {
   id             String   @id @default(uuid())
   email          String   @unique
-  password       String
+  password       String?  // nullable — Google SSO users have no password
+  googleId       String?  @unique
   name           String?
   role           Role
   organizationId String

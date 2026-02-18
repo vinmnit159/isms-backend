@@ -2,6 +2,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import fastifyJwt from '@fastify/jwt';
+import fastifyOauth2 from '@fastify/oauth2';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 
@@ -9,6 +10,7 @@ import { env } from './config/env';
 import { swaggerPlugin } from './plugins/swagger';
 import { authenticate } from './lib/auth-middleware';
 import { authRoutes } from './modules/auth/routes';
+import { googleAuthRoutes } from './modules/auth/google';
 import { assetRoutes } from './modules/assets/routes';
 import { riskRoutes } from './modules/risks/routes';
 import { controlRoutes } from './modules/controls/routes';
@@ -45,11 +47,28 @@ app.register(fastifyJwt, {
 
 app.register(swaggerPlugin);
 
+// Register Google OAuth2 plugin
+app.register(fastifyOauth2, {
+  name: 'googleOAuth2',
+  scope: ['openid', 'email', 'profile'],
+  credentials: {
+    client: {
+      id: env.GOOGLE_CLIENT_ID,
+      secret: env.GOOGLE_CLIENT_SECRET,
+    },
+    auth: fastifyOauth2.GOOGLE_CONFIGURATION,
+  },
+  startRedirectPath: '/auth/google',
+  callbackUri: env.GOOGLE_CALLBACK_URL,
+});
+
 // Add authentication decorator
 app.decorate('authenticate', authenticate);
 
 // Register routes
 app.register(authRoutes, { prefix: '/api/auth' });
+// Google OAuth routes — no /api prefix, paths must match Google Console redirect URIs
+app.register(googleAuthRoutes);
 app.register(assetRoutes, { prefix: '/api/assets' });
 app.register(riskRoutes, { prefix: '/api/risks' });
 app.register(controlRoutes, { prefix: '/api/controls' });

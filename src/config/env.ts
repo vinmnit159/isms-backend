@@ -17,6 +17,14 @@ const envSchema = z.object({
   
   // Logging
   LOG_LEVEL: z.string().default('info'),
+
+  // Google OAuth
+  GOOGLE_CLIENT_ID: z.string(),
+  GOOGLE_CLIENT_SECRET: z.string(),
+  // Where Google sends the user after consent — must match Google Console
+  GOOGLE_CALLBACK_URL: z.string().default('https://ismsbackend.bitcoingames1346.com/auth/google/callback'),
+  // Where backend redirects after successful auth (frontend)
+  FRONTEND_URL: z.string().default('https://isms.bitcoingames1346.com'),
 });
 
 export const env = envSchema.parse(process.env);
