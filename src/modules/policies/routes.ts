@@ -24,19 +24,27 @@ export async function policyRoutes(app: FastifyInstance) {
       const user = request.user as any;
       const { search, status } = request.query as { search?: string; status?: string };
 
+      const where: any = {
+        organizationId: user.organizationId,
+      };
+
+      if (status) {
+        // Store values are uppercase (e.g. DRAFT); accept both cases from client
+        where.status = {
+          equals: status.toUpperCase(),
+          mode: 'insensitive',
+        };
+      }
+
+      if (search) {
+        where.name = {
+          contains: search,
+          mode: 'insensitive' as const,
+        };
+      }
+
       const policies = await prisma.policy.findMany({
-        where: {
-          organizationId: user.organizationId,
-          ...(status ? { status } : {}),
-          ...(search
-            ? {
-                name: {
-                  contains: search,
-                  mode: 'insensitive' as const,
-                },
-              }
-            : {}),
-        },
+        where,
         orderBy: { createdAt: 'desc' },
       });
 

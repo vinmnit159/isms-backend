@@ -20,7 +20,35 @@ export async function controlRoutes(app: FastifyInstance) {
     onRequest: [requirePermission(Permission.READ_CONTROLS)],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      const { search, status, isoReference } = request.query as {
+        search?: string;
+        status?: string;
+        isoReference?: string;
+      };
+
+      const where: any = {};
+
+      if (status) {
+        where.status = status;
+      }
+
+      if (isoReference) {
+        where.isoReference = {
+          contains: isoReference,
+          mode: 'insensitive',
+        };
+      }
+
+      if (search) {
+        where.OR = [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { isoReference: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
       const controls = await prisma.control.findMany({
+        where,
         include: {
           evidence: true,
           riskMappings: {
