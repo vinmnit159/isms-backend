@@ -10,7 +10,7 @@ import { env } from './config/env';
 import { swaggerPlugin } from './plugins/swagger';
 import { authenticate } from './lib/auth-middleware';
 import { authRoutes } from './modules/auth/routes';
-import { googleAuthRoutes } from './modules/auth/google';
+import { registerGoogleCallback } from './modules/auth/google';
 import { assetRoutes } from './modules/assets/routes';
 import { riskRoutes } from './modules/risks/routes';
 import { controlRoutes } from './modules/controls/routes';
@@ -67,8 +67,8 @@ app.decorate('authenticate', authenticate);
 
 // Register routes
 app.register(authRoutes, { prefix: '/api/auth' });
-// Google OAuth routes — no /api prefix, paths must match Google Console redirect URIs
-app.register(googleAuthRoutes);
+// Google OAuth callback — registered directly on root so googleOAuth2 decorator is in scope
+registerGoogleCallback(app);
 app.register(assetRoutes, { prefix: '/api/assets' });
 app.register(riskRoutes, { prefix: '/api/risks' });
 app.register(controlRoutes, { prefix: '/api/controls' });
