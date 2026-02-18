@@ -19,8 +19,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.string().default('info'),
 
   // Google OAuth
-  GOOGLE_CLIENT_ID: z.string(),
-  GOOGLE_CLIENT_SECRET: z.string(),
+  GOOGLE_CLIENT_ID: z.string().default(''),
+  GOOGLE_CLIENT_SECRET: z.string().default(''),
   // Where Google sends the user after consent — must match Google Console
   GOOGLE_CALLBACK_URL: z.string().default('https://ismsbackend.bitcoingames1346.com/auth/google/callback'),
   // Where backend redirects after successful auth (frontend)
