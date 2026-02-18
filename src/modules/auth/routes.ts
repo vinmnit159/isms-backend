@@ -180,4 +180,98 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
   });
+
+  // Change password (protected)
+  app.post('/change-password', {
+    onRequest: [authenticate],
+  }, async (request: any, reply: any) => {
+    try {
+      const { currentPassword, newPassword } = request.body as {
+        currentPassword: string;
+        newPassword: string;
+      };
+
+      if (!currentPassword || !newPassword) {
+        return reply.status(400).send({
+          error: 'Validation error',
+          message: 'currentPassword and newPassword are required',
+        });
+      }
+
+      if (newPassword.length < 8) {
+        return reply.status(400).send({
+          error: 'Validation error',
+          message: 'New password must be at least 8 characters',
+        });
+      }
+
+      const userId = request.user.sub;
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+
+      if (!user) {
+        return reply.status(404).send({ error: 'Not found', message: 'User not found' });
+      }
+
+      const bcrypt = require('bcryptjs');
+      const isValid = await bcrypt.compare(currentPassword, user.password || '');
+      if (!isValid) {
+        return reply.status(400).send({
+          error: 'Invalid password',
+          message: 'Current password is incorrect',
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+      });
+
+      return reply.send({ message: 'Password updated successfully' });
+    } catch (error) {
+      app.log.error(error);
+      return reply.status(500).send({
+        error: 'Failed to change password',
+        message: 'An error occurred while updating your password',
+      });
+    }
+  });
+
+  // Update profile (name) (protected)
+  app.put('/profile', {
+    onRequest: [authenticate],
+  }, async (request: any, reply: any) => {
+    try {
+      const { name } = request.body as { name: string };
+
+      if (!name || !name.trim()) {
+        return reply.status(400).send({
+          error: 'Validation error',
+          message: 'Name is required',
+        });
+      }
+
+      const userId = request.user.sub;
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: { name: name.trim() },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          organizationId: true,
+          createdAt: true,
+        },
+      });
+
+      return reply.send({ user });
+    } catch (error) {
+      app.log.error(error);
+      return reply.status(500).send({
+        error: 'Failed to update profile',
+        message: 'An error occurred while updating your profile',
+      });
+    }
+  });
 }
