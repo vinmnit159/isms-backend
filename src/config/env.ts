@@ -25,6 +25,14 @@ const envSchema = z.object({
   GOOGLE_CALLBACK_URL: z.string().default('https://ismsbackend.bitcoingames1346.com/auth/google/callback'),
   // Where backend redirects after successful auth (frontend)
   FRONTEND_URL: z.string().default('https://isms.bitcoingames1346.com'),
+
+  // GitHub OAuth
+  GITHUB_CLIENT_ID: z.string().default(''),
+  GITHUB_CLIENT_SECRET: z.string().default(''),
+  GITHUB_CALLBACK_URL: z.string().default('https://ismsbackend.bitcoingames1346.com/integrations/github/callback'),
+
+  // Encryption (AES-256) — 32 hex bytes = 64 hex chars
+  ENCRYPTION_KEY: z.string().default('0000000000000000000000000000000000000000000000000000000000000000'),
 });
 
 export const env = envSchema.parse(process.env);

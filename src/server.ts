@@ -1,5 +1,5 @@
-import { FastifyInstance } from 'fastify';
 import { app } from './app';
+import { startGitHubScanJob } from './jobs/github-scan';
 
 async function start() {
   try {
@@ -7,7 +7,10 @@ async function start() {
     const host = process.env.HOST || '0.0.0.0';
     
     await app.listen({ port, host });
-    app.log.info(`🚀 Server listening on http://${host}:${port}`);
+    app.log.info(`Server listening on http://${host}:${port}`);
+
+    // Start background jobs
+    startGitHubScanJob(app);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

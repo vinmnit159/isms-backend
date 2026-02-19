@@ -79,11 +79,12 @@ model Organization {
   name        String
   createdAt  DateTime @default(now())
 
-  users       User[]
-  assets      Asset[]
-  controls    Control[]
-  policies    Policy[]
-  audits      Audit[]
+  users        User[]
+  assets       Asset[]
+  controls     Control[]
+  policies     Policy[]
+  audits       Audit[]
+  integrations Integration[]
 }
 
 model User {
@@ -233,6 +234,44 @@ model AuditFinding {
 
   audit       Audit   @relation(fields: [auditId], references: [id])
   control     Control @relation(fields: [controlId], references: [id])
+}
+
+/////////////////////////
+// INTEGRATIONS
+/////////////////////////
+
+model Integration {
+  id             String    @id @default(uuid())
+  organizationId String
+  provider       String    // e.g. "GITHUB"
+  accessToken    String    // AES-256 encrypted
+  status         String    @default("ACTIVE") // ACTIVE | DISCONNECTED
+  connectedBy    String    // userId
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  repos          GitHubRepo[]
+
+  @@unique([organizationId, provider])
+}
+
+model GitHubRepo {
+  id              String   @id @default(uuid())
+  integrationId   String
+  githubId        Int
+  name            String
+  fullName        String
+  private         Boolean
+  defaultBranch   String
+  visibility      String
+  lastScannedAt   DateTime?
+  rawData         Json?    // latest scan result
+  createdAt       DateTime @default(now())
+
+  integration     Integration @relation(fields: [integrationId], references: [id])
+
+  @@unique([integrationId, githubId])
 }
 
 /////////////////////////
