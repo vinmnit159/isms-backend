@@ -104,8 +104,10 @@ export async function integrationRoutes(fastify: FastifyInstance) {
       return reply.status(503).send({ error: 'GitHub OAuth not configured on this server' });
     }
 
+    // JWT uses `sub` for user id (see auth/routes.ts sign call)
+    const userId = user.sub ?? user.id;
     const state = Buffer.from(
-      JSON.stringify({ orgId: user.organizationId, userId: user.id })
+      JSON.stringify({ orgId: user.organizationId, userId })
     ).toString('base64url');
 
     const params = new URLSearchParams({
@@ -137,8 +139,12 @@ export async function integrationRoutes(fastify: FastifyInstance) {
     try {
       const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf8'));
       orgId = decoded.orgId;
-      userId = decoded.userId;
+      userId = decoded.userId ?? decoded.sub ?? 'system';
     } catch {
+      return reply.redirect(`${frontendBase}/integrations?error=invalid_state`);
+    }
+
+    if (!orgId || !userId) {
       return reply.redirect(`${frontendBase}/integrations?error=invalid_state`);
     }
 
