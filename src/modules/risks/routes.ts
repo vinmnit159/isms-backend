@@ -231,6 +231,49 @@ export async function riskRoutes(app: FastifyInstance) {
     }
   });
 
+  // GET /overview — stats for Risk Overview page
+  app.get('/overview', {
+    onRequest: [requirePermission(Permission.READ_RISKS)],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const [byStatus, byImpact, recent] = await Promise.all([
+        prisma.risk.groupBy({ by: ['status'], _count: { status: true } }),
+        prisma.risk.groupBy({ by: ['impact'], _count: { impact: true } }),
+        prisma.risk.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          include: { asset: { select: { name: true } } },
+        }),
+      ]);
+
+      const statusMap: Record<string, number> = {};
+      byStatus.forEach((r) => { statusMap[r.status] = r._count.status; });
+      const impactMap: Record<string, number> = {};
+      byImpact.forEach((r) => { impactMap[r.impact] = r._count.impact; });
+
+      const total = Object.values(statusMap).reduce((a, b) => a + b, 0);
+
+      return reply.send({
+        success: true,
+        data: {
+          total,
+          open: statusMap['OPEN'] ?? 0,
+          mitigated: statusMap['MITIGATED'] ?? 0,
+          accepted: statusMap['ACCEPTED'] ?? 0,
+          transferred: statusMap['TRANSFERRED'] ?? 0,
+          critical: impactMap['CRITICAL'] ?? 0,
+          high: impactMap['HIGH'] ?? 0,
+          medium: impactMap['MEDIUM'] ?? 0,
+          low: impactMap['LOW'] ?? 0,
+          recentRisks: recent,
+        },
+      });
+    } catch (error) {
+      app.log.error(error);
+      return reply.status(500).send({ success: false, error: 'Failed to fetch risk overview' });
+    }
+  });
+
   // Add risk treatment
   app.post('/treatment', {
     onRequest: [requirePermission(Permission.WRITE_RISKS)],

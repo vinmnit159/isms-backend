@@ -5,6 +5,7 @@ import { encrypt, decrypt } from '../../lib/crypto';
 import { prisma } from '../../lib/prisma';
 import { authenticate } from '../../lib/auth-middleware';
 import { fetchRepos, scanRepo } from './github-collector';
+import { upsertAssetsAndRisks } from './github-asset-risk';
 
 // ISO control reference → DB lookup
 async function findControlId(organizationId: string, isoReference: string): Promise<string | null> {
@@ -285,8 +286,18 @@ export async function syncRepos(
   });
   if (!integration) return;
 
+  // Resolve the org admin user id to use as asset ownerId
+  const orgAdmin = await prisma.user.findFirst({
+    where: { organizationId, role: { in: ['ORG_ADMIN', 'SUPER_ADMIN', 'SECURITY_OWNER'] } },
+    select: { id: true },
+  });
+  const ownerId = orgAdmin?.id ?? integration.connectedBy;
+
+  const scanResults = new Map<number, any>();
+
   for (const repo of repos) {
     const scanResult = await scanRepo(token, repo);
+    scanResults.set(repo.id, scanResult);
 
     await prisma.gitHubRepo.upsert({
       where: { integrationId_githubId: { integrationId: integration.id, githubId: repo.id } },
@@ -316,6 +327,11 @@ export async function syncRepos(
       fastify.log.error(err, `Evidence upsert failed for ${repo.full_name}`)
     );
   }
+
+  // Create/update Assets and Risks from scan results
+  await upsertAssetsAndRisks(organizationId, ownerId, repos, scanResults).catch((err) =>
+    fastify.log.error(err, 'Asset/Risk upsert from GitHub scan failed')
+  );
 
   fastify.log.info(`GitHub sync complete for org ${organizationId}: ${repos.length} repos`);
 }
