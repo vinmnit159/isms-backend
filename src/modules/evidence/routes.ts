@@ -4,6 +4,7 @@ import path from 'path';
 import { prisma } from '../../lib/prisma';
 import { requirePermission, Permission } from '../../lib/rbac';
 import { saveUploadedFile, deleteStoredFile, UPLOAD_DIR } from '../../lib/file-storage';
+import { logActivity } from '../../lib/activity-logger';
 
 export async function evidenceRoutes(app: FastifyInstance) {
   // GET /api/evidence — list all evidence with control info
@@ -92,6 +93,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         deleteStoredFile(evidence.fileUrl.replace('/files/', ''));
       }
       await prisma.evidence.delete({ where: { id } });
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'DELETED', 'EVIDENCE', id);
       return reply.send({ success: true, message: 'Evidence deleted' });
     }
   );
@@ -140,6 +142,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
           },
         });
 
+        logActivity((request.user as any).sub ?? (request.user as any).id, 'UPLOADED', 'EVIDENCE', evidence.id);
         return reply.status(201).send({
           success: true,
           data: evidence,

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../../lib/prisma';
 import { requirePermission } from '../../lib/rbac';
 import { Permission, RiskLevel, RiskStatus } from '../../lib/rbac';
+import { logActivity } from '../../lib/activity-logger';
 
 const createRiskSchema = z.object({
   title: z.string().min(1),
@@ -113,6 +114,7 @@ export async function riskRoutes(app: FastifyInstance) {
         },
       });
 
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'CREATED', 'RISK', risk.id);
       return reply.status(201).send({
         success: true,
         data: risk,
@@ -160,6 +162,7 @@ export async function riskRoutes(app: FastifyInstance) {
         },
       });
 
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'UPDATED', 'RISK', risk.id);
       return reply.send({
         success: true,
         data: risk,
@@ -182,10 +185,8 @@ export async function riskRoutes(app: FastifyInstance) {
     try {
       const { id } = request.params as { id: string };
       
-      await prisma.risk.delete({
-        where: { id },
-      });
-
+      await prisma.risk.delete({ where: { id } });
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'DELETED', 'RISK', id);
       return reply.send({
         success: true,
         message: 'Risk deleted successfully',

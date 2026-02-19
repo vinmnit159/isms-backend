@@ -6,6 +6,7 @@ import { prisma } from '../../lib/prisma';
 import { requirePermission } from '../../lib/rbac';
 import { Permission } from '../../lib/rbac';
 import { saveUploadedFile, deleteStoredFile, UPLOAD_DIR } from '../../lib/file-storage';
+import { logActivity } from '../../lib/activity-logger';
 
 const createPolicySchema = z.object({
   name: z.string().min(1, 'Policy name is required'),
@@ -109,6 +110,7 @@ export async function policyRoutes(app: FastifyInstance) {
         },
       });
 
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'CREATED', 'POLICY', policy.id);
       return reply.status(201).send({
         success: true,
         data: policy,
@@ -154,6 +156,7 @@ export async function policyRoutes(app: FastifyInstance) {
         },
       });
 
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'UPDATED', 'POLICY', policy.id);
       return reply.send({
         success: true,
         data: policy,
@@ -195,7 +198,7 @@ export async function policyRoutes(app: FastifyInstance) {
       }
 
       await prisma.policy.delete({ where: { id } });
-
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'DELETED', 'POLICY', id);
       return reply.send({
         success: true,
         message: 'Policy deleted successfully',
@@ -243,6 +246,7 @@ export async function policyRoutes(app: FastifyInstance) {
         data: { documentUrl: stored.fileUrl },
       });
 
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'UPLOADED', 'POLICY', id);
       return reply.send({
         success: true,
         data: {

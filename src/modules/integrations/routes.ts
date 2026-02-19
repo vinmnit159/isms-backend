@@ -6,6 +6,7 @@ import { prisma } from '../../lib/prisma';
 import { authenticate } from '../../lib/auth-middleware';
 import { fetchRepos, scanRepo } from './github-collector';
 import { upsertAssetsAndRisks } from './github-asset-risk';
+import { logActivity } from '../../lib/activity-logger';
 
 // ISO control reference → DB lookup
 async function findControlId(organizationId: string, isoReference: string): Promise<string | null> {
@@ -185,6 +186,9 @@ export async function integrationRoutes(fastify: FastifyInstance) {
       },
     });
 
+    // Log the connection event
+    logActivity(userId, 'CONNECTED', 'INTEGRATION', orgId);
+
     // Fire-and-forget initial sync
     syncRepos(orgId, accessToken, fastify).catch((err) =>
       fastify.log.error(err, 'Initial GitHub repo sync failed')
@@ -228,6 +232,7 @@ export async function integrationRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'GitHub not connected or inactive' });
       }
       const token = decrypt(integration.accessToken);
+      logActivity(user.sub ?? user.id, 'SCANNED', 'INTEGRATION', user.organizationId);
       syncRepos(user.organizationId, token, fastify).catch((err) =>
         fastify.log.error(err, 'Manual GitHub scan failed')
       );

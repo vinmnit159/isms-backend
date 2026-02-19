@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma';
 import { requirePermission, Permission, AssetType, RiskLevel } from '../../lib/rbac';
+import { logActivity } from '../../lib/activity-logger';
 
 const createAssetSchema = z.object({
   name: z.string().min(1),
@@ -91,6 +92,7 @@ export async function assetRoutes(app: FastifyInstance) {
         },
       });
 
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'CREATED', 'ASSET', asset.id);
       return reply.status(201).send({
         success: true,
         data: asset,
@@ -122,6 +124,7 @@ export async function assetRoutes(app: FastifyInstance) {
         },
       });
 
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'UPDATED', 'ASSET', asset.id);
       return reply.send({
         success: true,
         data: asset,
@@ -144,10 +147,8 @@ export async function assetRoutes(app: FastifyInstance) {
     try {
       const { id } = request.params as { id: string };
       
-      await prisma.asset.delete({
-        where: { id },
-      });
-
+      await prisma.asset.delete({ where: { id } });
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'DELETED', 'ASSET', id);
       return reply.send({
         success: true,
         message: 'Asset deleted successfully',
