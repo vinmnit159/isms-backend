@@ -4,8 +4,12 @@ import helmet from '@fastify/helmet';
 import fastifyJwt from '@fastify/jwt';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import fastifyMultipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
 
 import { env } from './config/env';
+import fs from 'fs';
 import { swaggerPlugin } from './plugins/swagger';
 import { authenticate } from './lib/auth-middleware';
 import { authRoutes } from './modules/auth/routes';
@@ -26,8 +30,14 @@ export const app: FastifyInstance = Fastify({
   },
 });
 
+// Ensure uploads directory exists
+const uploadDir = path.resolve(env.UPLOAD_DIR);
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
 // Register plugins
-app.register(helmet);
+app.register(helmet, {
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+});
 app.register(cors, {
   origin: [
     env.CORS_ORIGIN,
@@ -43,6 +53,21 @@ app.register(fastifyJwt, {
   sign: {
     expiresIn: env.JWT_EXPIRES_IN,
   },
+});
+
+// File upload support (multipart/form-data)
+app.register(fastifyMultipart, {
+  limits: {
+    fileSize: env.MAX_FILE_SIZE,
+    files: 1,
+  },
+});
+
+// Serve uploaded files at /files/*
+app.register(fastifyStatic, {
+  root: uploadDir,
+  prefix: '/files/',
+  decorateReply: false,
 });
 
 app.register(swaggerPlugin);

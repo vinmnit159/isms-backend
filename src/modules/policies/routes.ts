@@ -1,8 +1,11 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+import fs from 'fs';
+import path from 'path';
 import { prisma } from '../../lib/prisma';
 import { requirePermission } from '../../lib/rbac';
 import { Permission } from '../../lib/rbac';
+import { saveUploadedFile, deleteStoredFile, UPLOAD_DIR } from '../../lib/file-storage';
 
 const createPolicySchema = z.object({
   name: z.string().min(1, 'Policy name is required'),
@@ -186,6 +189,11 @@ export async function policyRoutes(app: FastifyInstance) {
         });
       }
 
+      // Delete any stored file
+      if (existing.documentUrl?.startsWith('/files/')) {
+        deleteStoredFile(existing.documentUrl.replace('/files/', ''));
+      }
+
       await prisma.policy.delete({ where: { id } });
 
       return reply.send({
@@ -199,6 +207,100 @@ export async function policyRoutes(app: FastifyInstance) {
         error: 'Failed to delete policy',
         message: 'Could not delete policy from database',
       });
+    }
+  });
+
+  // POST /api/policies/:id/upload — upload / replace a policy document file
+  app.post('/:id/upload', {
+    onRequest: [requirePermission(Permission.WRITE_CONTROLS)],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const user = request.user as any;
+
+      const existing = await prisma.policy.findFirst({
+        where: { id, organizationId: user.organizationId },
+      });
+
+      if (!existing) {
+        return reply.status(404).send({ success: false, error: 'Policy not found' });
+      }
+
+      const fileField = await request.file();
+      if (!fileField) {
+        return reply.status(400).send({ success: false, error: 'No file provided' });
+      }
+
+      // Delete old file if it was stored locally
+      if (existing.documentUrl?.startsWith('/files/')) {
+        deleteStoredFile(existing.documentUrl.replace('/files/', ''));
+      }
+
+      const stored = await saveUploadedFile(fileField, 'policies');
+
+      const updated = await prisma.policy.update({
+        where: { id },
+        data: { documentUrl: stored.fileUrl },
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          policy: updated,
+          file: {
+            fileName: stored.originalName,
+            fileUrl: stored.fileUrl,
+            size: stored.size,
+            mimeType: stored.mimeType,
+          },
+        },
+        message: 'Policy document uploaded successfully',
+      });
+    } catch (error) {
+      app.log.error(error);
+      return reply.status(500).send({ success: false, error: 'Failed to upload policy document' });
+    }
+  });
+
+  // GET /api/policies/:id/download — download policy document (authenticated)
+  app.get('/:id/download', {
+    onRequest: [requirePermission(Permission.READ_CONTROLS)],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const user = request.user as any;
+
+      const policy = await prisma.policy.findFirst({
+        where: { id, organizationId: user.organizationId },
+      });
+
+      if (!policy) {
+        return reply.status(404).send({ success: false, error: 'Policy not found' });
+      }
+
+      if (!policy.documentUrl) {
+        return reply.status(404).send({ success: false, error: 'No document attached to this policy' });
+      }
+
+      // If it's a local file, stream it
+      if (policy.documentUrl.startsWith('/files/')) {
+        const relPath = policy.documentUrl.replace('/files/', '');
+        const absPath = path.join(UPLOAD_DIR, relPath);
+
+        if (!fs.existsSync(absPath)) {
+          return reply.status(404).send({ success: false, error: 'File not found on server' });
+        }
+
+        const fileName = path.basename(absPath);
+        reply.header('Content-Disposition', `attachment; filename="${fileName}"`);
+        return reply.sendFile(relPath);
+      }
+
+      // External URL — redirect
+      return reply.redirect(policy.documentUrl);
+    } catch (error) {
+      app.log.error(error);
+      return reply.status(500).send({ success: false, error: 'Failed to download policy document' });
     }
   });
 }

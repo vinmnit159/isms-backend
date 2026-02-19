@@ -33,6 +33,11 @@ const envSchema = z.object({
 
   // Encryption (AES-256) — 32 hex bytes = 64 hex chars
   ENCRYPTION_KEY: z.string().default('0000000000000000000000000000000000000000000000000000000000000000'),
+
+  // File uploads — local disk storage
+  UPLOAD_DIR: z.string().default('./uploads'),
+  // Max file size in bytes (default 50 MB)
+  MAX_FILE_SIZE: z.string().transform(Number).default('52428800'),
 });
 
 export const env = envSchema.parse(process.env);
