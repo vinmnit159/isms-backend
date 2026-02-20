@@ -7,6 +7,11 @@ import { authenticate } from '../../lib/auth-middleware';
 import { fetchRepos, scanRepo } from './github-collector';
 import { upsertAssetsAndRisks } from './github-asset-risk';
 import { logActivity } from '../../lib/activity-logger';
+import {
+  getDriveAuthUrl,
+  exchangeCodeForTokens,
+  bootstrapFolderStructure,
+} from './google-drive';
 
 // ISO control reference → DB lookup
 async function findControlId(organizationId: string, isoReference: string): Promise<string | null> {
@@ -273,6 +278,125 @@ export async function integrationRoutes(fastify: FastifyInstance) {
       });
       if (!repo) return reply.status(404).send({ error: 'Repo not found' });
       return reply.send({ repo });
+    }
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /integrations/google/connect — initiate Google Drive OAuth
+  // Reads JWT from ?token= query param (browser redirect) or Authorization header
+  // ──────────────────────────────────────────────────────────────────────────
+  fastify.get('/google/connect', async (request: FastifyRequest, reply: FastifyReply) => {
+    const query = request.query as any;
+    let user: any;
+    try {
+      if (query.token) {
+        user = fastify.jwt.verify(query.token);
+      } else {
+        await (request as any).jwtVerify();
+        user = (request as any).user;
+      }
+    } catch {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
+    if (!env.GOOGLE_DRIVE_CLIENT_ID) {
+      return reply.status(503).send({ error: 'Google Drive OAuth not configured on this server' });
+    }
+
+    const userId = user.sub ?? user.id;
+    const url = getDriveAuthUrl(user.organizationId, userId);
+    return reply.redirect(url);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /integrations/google/callback — exchange code for tokens, bootstrap folders
+  // ──────────────────────────────────────────────────────────────────────────
+  fastify.get('/google/callback', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { code, state, error } = request.query as any;
+    const frontendBase = env.FRONTEND_URL;
+
+    if (error) {
+      return reply.redirect(`${frontendBase}/integrations?error=${encodeURIComponent(error)}`);
+    }
+    if (!code || !state) {
+      return reply.redirect(`${frontendBase}/integrations?error=missing_params`);
+    }
+
+    let orgId: string;
+    let userId: string;
+    try {
+      const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf8'));
+      orgId = decoded.orgId;
+      userId = decoded.userId ?? decoded.sub ?? 'system';
+    } catch {
+      return reply.redirect(`${frontendBase}/integrations?error=invalid_state`);
+    }
+
+    if (!orgId || !userId) {
+      return reply.redirect(`${frontendBase}/integrations?error=invalid_state`);
+    }
+
+    let tokens: Awaited<ReturnType<typeof exchangeCodeForTokens>>;
+    try {
+      tokens = await exchangeCodeForTokens(code);
+    } catch (err: any) {
+      fastify.log.error(err, 'Google Drive token exchange failed');
+      return reply.redirect(`${frontendBase}/integrations?error=token_exchange_failed`);
+    }
+
+    // Persist encrypted tokens
+    await prisma.integration.upsert({
+      where: { organizationId_provider: { organizationId: orgId, provider: 'GOOGLE_DRIVE' } },
+      update: {
+        accessToken: encrypt(tokens.accessToken),
+        refreshToken: encrypt(tokens.refreshToken),
+        expiresAt: tokens.expiresAt,
+        status: 'ACTIVE',
+        connectedBy: userId,
+      },
+      create: {
+        organizationId: orgId,
+        provider: 'GOOGLE_DRIVE',
+        accessToken: encrypt(tokens.accessToken),
+        refreshToken: encrypt(tokens.refreshToken),
+        expiresAt: tokens.expiresAt,
+        status: 'ACTIVE',
+        connectedBy: userId,
+      },
+    });
+
+    logActivity(userId, 'CONNECTED', 'INTEGRATION', orgId);
+
+    // Bootstrap folder structure — fire-and-forget, errors are non-fatal
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { name: true },
+    });
+    bootstrapFolderStructure(orgId, org?.name ?? 'Org').catch((err) =>
+      fastify.log.error(err, 'Google Drive folder bootstrap failed')
+    );
+
+    return reply.redirect(`${frontendBase}/integrations?connected=google_drive`);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // DELETE /integrations/google — disconnect Google Drive
+  // ──────────────────────────────────────────────────────────────────────────
+  fastify.delete(
+    '/google',
+    { onRequest: [authenticate] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = (request as any).user;
+      const integration = await prisma.integration.findUnique({
+        where: { organizationId_provider: { organizationId: user.organizationId, provider: 'GOOGLE_DRIVE' } },
+      });
+      if (!integration) return reply.status(404).send({ error: 'Google Drive not connected' });
+      await prisma.integration.update({
+        where: { id: integration.id },
+        data: { status: 'DISCONNECTED' },
+      });
+      logActivity(user.sub ?? user.id, 'DISCONNECTED', 'INTEGRATION', user.organizationId);
+      return reply.send({ success: true });
     }
   );
 }

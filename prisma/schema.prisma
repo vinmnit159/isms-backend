@@ -339,8 +339,11 @@ model AuditFinding {
 model Integration {
   id             String    @id @default(uuid())
   organizationId String
-  provider       String    // e.g. "GITHUB"
+  provider       String    // e.g. "GITHUB" | "GOOGLE_DRIVE"
   accessToken    String    // AES-256 encrypted
+  refreshToken   String?   // AES-256 encrypted (Google Drive only)
+  expiresAt      DateTime? // access token expiry (Google Drive only)
+  metadata       Json?     // arbitrary provider data, e.g. { evidenceFolderId, policyFolderId }
   status         String    @default("ACTIVE") // ACTIVE | DISCONNECTED
   connectedBy    String    // userId
   createdAt      DateTime  @default(now())

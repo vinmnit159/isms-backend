@@ -2,11 +2,13 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
 import { prisma } from '../../lib/prisma';
 import { requirePermission } from '../../lib/rbac';
 import { Permission } from '../../lib/rbac';
 import { saveUploadedFile, deleteStoredFile, UPLOAD_DIR } from '../../lib/file-storage';
 import { logActivity } from '../../lib/activity-logger';
+import { getDriveFolderIds, uploadFileToDrive } from '../integrations/google-drive';
 
 const createPolicySchema = z.object({
   name: z.string().min(1, 'Policy name is required'),
@@ -239,11 +241,37 @@ export async function policyRoutes(app: FastifyInstance) {
         deleteStoredFile(existing.documentUrl.replace('/files/', ''));
       }
 
-      const stored = await saveUploadedFile(fileField, 'policies');
+      // Use Google Drive if connected, fall back to local disk
+      const driveFolders = await getDriveFolderIds(user.organizationId);
+      let documentUrl: string;
+      let fileMetadata: { fileName: string; fileUrl: string; size?: number; mimeType: string };
+
+      if (driveFolders) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of fileField.file) {
+          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+        }
+        const buffer = Buffer.concat(chunks);
+        const driveStream = Readable.from(buffer);
+
+        const uploaded = await uploadFileToDrive(
+          user.organizationId,
+          driveStream,
+          fileField.filename,
+          fileField.mimetype,
+          driveFolders.policyFolderId,
+        );
+        documentUrl = uploaded.webViewLink;
+        fileMetadata = { fileName: uploaded.name, fileUrl: uploaded.webViewLink, mimeType: fileField.mimetype };
+      } else {
+        const stored = await saveUploadedFile(fileField, 'policies');
+        documentUrl = stored.fileUrl;
+        fileMetadata = { fileName: stored.originalName, fileUrl: stored.fileUrl, size: stored.size, mimeType: stored.mimeType };
+      }
 
       const updated = await prisma.policy.update({
         where: { id },
-        data: { documentUrl: stored.fileUrl },
+        data: { documentUrl },
       });
 
       logActivity((request.user as any).sub ?? (request.user as any).id, 'UPLOADED', 'POLICY', id);
@@ -251,12 +279,7 @@ export async function policyRoutes(app: FastifyInstance) {
         success: true,
         data: {
           policy: updated,
-          file: {
-            fileName: stored.originalName,
-            fileUrl: stored.fileUrl,
-            size: stored.size,
-            mimeType: stored.mimeType,
-          },
+          file: fileMetadata,
         },
         message: 'Policy document uploaded successfully',
       });

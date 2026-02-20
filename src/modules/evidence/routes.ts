@@ -1,10 +1,12 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fs from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
 import { prisma } from '../../lib/prisma';
 import { requirePermission, Permission } from '../../lib/rbac';
 import { saveUploadedFile, deleteStoredFile, UPLOAD_DIR } from '../../lib/file-storage';
 import { logActivity } from '../../lib/activity-logger';
+import { getDriveFolderIds, uploadFileToDrive } from '../integrations/google-drive';
 
 export async function evidenceRoutes(app: FastifyInstance) {
   // GET /api/evidence — list all evidence with control info
@@ -125,13 +127,40 @@ export async function evidenceRoutes(app: FastifyInstance) {
           return reply.status(404).send({ success: false, error: 'Control not found' });
         }
 
-        const stored = await saveUploadedFile(fileField, 'evidence');
+        // Use Google Drive if connected, fall back to local disk
+        const driveFolders = await getDriveFolderIds(user.organizationId);
+        let fileName: string;
+        let fileUrl: string;
+
+        if (driveFolders) {
+          // Buffer the stream so we can pass it to Drive
+          const chunks: Buffer[] = [];
+          for await (const chunk of fileField.file) {
+            chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+          }
+          const buffer = Buffer.concat(chunks);
+          const driveStream = Readable.from(buffer);
+
+          const uploaded = await uploadFileToDrive(
+            user.organizationId,
+            driveStream,
+            fileField.filename,
+            fileField.mimetype,
+            driveFolders.evidenceFolderId,
+          );
+          fileName = uploaded.name;
+          fileUrl = uploaded.webViewLink;
+        } else {
+          const stored = await saveUploadedFile(fileField, 'evidence');
+          fileName = stored.originalName;
+          fileUrl = stored.fileUrl;
+        }
 
         const evidence = await prisma.evidence.create({
           data: {
             type: 'FILE',
-            fileName: stored.originalName,
-            fileUrl: stored.fileUrl,
+            fileName,
+            fileUrl,
             hash: `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             controlId,
             collectedBy: user.email ?? user.id,

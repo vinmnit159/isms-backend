@@ -38,6 +38,11 @@ const envSchema = z.object({
   UPLOAD_DIR: z.string().default('./uploads'),
   // Max file size in bytes (default 50 MB)
   MAX_FILE_SIZE: z.string().transform(Number).default('52428800'),
+
+  // Google Drive OAuth (separate from Google SSO credentials above)
+  GOOGLE_DRIVE_CLIENT_ID: z.string().default(''),
+  GOOGLE_DRIVE_CLIENT_SECRET: z.string().default(''),
+  GOOGLE_DRIVE_CALLBACK_URL: z.string().default('https://ismsbackend.bitcoingames1346.com/integrations/google/callback'),
 });
 
 export const env = envSchema.parse(process.env);
