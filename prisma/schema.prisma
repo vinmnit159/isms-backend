@@ -97,8 +97,25 @@ model User {
   organizationId String
   createdAt      DateTime @default(now())
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization    @relation(fields: [organizationId], references: [id])
   activityLogs   ActivityLog[]
+  gitAccounts    UserGitAccount[]
+}
+
+model UserGitAccount {
+  id             String   @id @default(uuid())
+  userId         String
+  githubUsername String
+  githubId       Int?
+  avatarUrl      String?
+  profileUrl     String?
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, githubUsername])
+  @@index([userId])
 }
 
 /////////////////////////

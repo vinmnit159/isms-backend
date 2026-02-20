@@ -16,7 +16,9 @@ export type ActivityAction =
   | 'SCANNED'
   | 'CONNECTED'
   | 'DISCONNECTED'
-  | 'SYSTEM_SETUP';
+  | 'SYSTEM_SETUP'
+  | 'MAPPED'
+  | 'UNMAPPED';
 
 export async function logActivity(
   userId: string,
