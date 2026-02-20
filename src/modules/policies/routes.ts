@@ -10,6 +10,7 @@ import { saveUploadedFile, deleteStoredFile, UPLOAD_DIR } from '../../lib/file-s
 import { logActivity } from '../../lib/activity-logger';
 import { getDriveFolderIds, uploadFileToDrive } from '../integrations/google-drive';
 import { DEFAULT_POLICIES } from '../../lib/seed';
+import { generatePolicyDocument } from '../../lib/policy-doc-generator';
 
 const createPolicySchema = z.object({
   name: z.string().min(1, 'Policy name is required'),
@@ -28,6 +29,106 @@ export async function policyRoutes(app: FastifyInstance) {
     onRequest: [requirePermission(Permission.READ_CONTROLS)],
   }, async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply.send({ success: true, data: DEFAULT_POLICIES });
+  });
+
+  // POST /api/policies/from-template — create policy + generate editable .docx in one shot
+  app.post('/from-template', {
+    onRequest: [requirePermission(Permission.WRITE_CONTROLS)],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const user = request.user as any;
+      const body = request.body as {
+        templateName: string;
+        version?: string;
+        status?: string;
+        approvedBy?: string;
+      };
+
+      // Look up the template by name
+      const template = DEFAULT_POLICIES.find(t => t.name === body.templateName);
+      if (!template) {
+        return reply.status(404).send({
+          success: false,
+          error: 'Template not found',
+          message: `No template named "${body.templateName}" exists in the catalogue`,
+        });
+      }
+
+      // Allow caller to override version/status/approvedBy
+      const policyName    = template.name;
+      const policyVersion = body.version  ?? template.version;
+      const policyStatus  = body.status   ?? template.status;
+
+      // Generate the .docx buffer
+      const docBuffer = await generatePolicyDocument({
+        name:          policyName,
+        version:       policyVersion,
+        status:        policyStatus,
+        category:      template.category,
+        isoReferences: template.isoReferences,
+        description:   template.description,
+      });
+
+      // Sanitise a filename
+      const safeName = policyName.replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 80);
+      const fileName = `${safeName}_v${policyVersion}.docx`;
+
+      // Persist the file — Drive if connected, otherwise local disk
+      let documentUrl: string;
+
+      const driveFolders = await getDriveFolderIds(user.organizationId);
+      if (driveFolders) {
+        const { Readable } = await import('stream');
+        const stream = Readable.from(docBuffer);
+        const uploaded = await uploadFileToDrive(
+          user.organizationId,
+          stream,
+          fileName,
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          driveFolders.policyFolderId,
+        );
+        documentUrl = uploaded.webViewLink;
+      } else {
+        const { randomUUID } = await import('crypto');
+        const fsp = await import('fs/promises');
+        const fss = await import('fs');
+        const pathMod = await import('path');
+
+        const dir = pathMod.join(UPLOAD_DIR, 'policies');
+        if (!fss.existsSync(dir)) fss.mkdirSync(dir, { recursive: true });
+
+        const savedName = `${randomUUID()}-${fileName}`;
+        await fsp.writeFile(pathMod.join(dir, savedName), docBuffer);
+        documentUrl = `/files/policies/${savedName}`;
+      }
+
+      // Create the policy record
+      const policy = await prisma.policy.create({
+        data: {
+          name:           policyName,
+          version:        policyVersion,
+          status:         policyStatus,
+          documentUrl,
+          approvedBy:     body.approvedBy || null,
+          organizationId: user.organizationId,
+        },
+      });
+
+      logActivity((request.user as any).sub ?? (request.user as any).id, 'CREATED', 'POLICY', policy.id);
+
+      return reply.status(201).send({
+        success: true,
+        data: policy,
+        message: 'Policy created with template document attached',
+      });
+    } catch (error) {
+      app.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to create policy from template',
+        message: 'Could not generate document or create policy record',
+      });
+    }
   });
 
   // GET /api/policies — list all policies for the user's organization
