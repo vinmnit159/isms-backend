@@ -7,6 +7,8 @@ export enum AssetType {
   SAAS = 'SAAS',
   ENDPOINT = 'ENDPOINT',
   NETWORK = 'NETWORK',
+  REPOSITORY = 'REPOSITORY',
+  VENDOR = 'VENDOR',
   OTHER = 'OTHER',
 }
 

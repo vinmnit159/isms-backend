@@ -27,7 +27,15 @@ enum AssetType {
   SAAS
   ENDPOINT
   NETWORK
+  REPOSITORY
+  VENDOR
   OTHER
+}
+
+enum ComplianceStatus {
+  COMPLIANT
+  NON_COMPLIANT
+  UNKNOWN
 }
 
 enum RiskLevel {
@@ -123,17 +131,88 @@ model UserGitAccount {
 /////////////////////////
 
 model Asset {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   type           AssetType
   ownerId        String
   criticality    RiskLevel
   description    String?
   organizationId String
-  createdAt      DateTime @default(now())
+  // Endpoint-specific fields (populated for ENDPOINT assets managed by MDM)
+  serialNumber   String?
+  hostname       String?
+  osType         String?   // "darwin" | "linux" | "windows"
+  osVersion      String?
+  status         String    @default("ACTIVE") // ACTIVE | INACTIVE | RETIRED
+  createdAt      DateTime  @default(now())
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization      @relation(fields: [organizationId], references: [id])
   risks          Risk[]
+  compliance     DeviceCompliance?
+  checkins       DeviceCheckin[]
+  enrollment     DeviceEnrollment?
+}
+
+/////////////////////////
+// MDM / DEVICE MANAGEMENT
+/////////////////////////
+
+// One-to-one: latest compliance snapshot per device
+model DeviceCompliance {
+  id                         String           @id @default(uuid())
+  assetId                    String           @unique
+  diskEncryptionEnabled      Boolean          @default(false)
+  screenLockEnabled          Boolean          @default(false)
+  firewallEnabled            Boolean          @default(false)
+  antivirusEnabled           Boolean          @default(false)
+  systemIntegrityEnabled     Boolean          @default(false)
+  autoUpdateEnabled          Boolean          @default(false)
+  gatekeeperEnabled          Boolean          @default(false)
+  complianceStatus           ComplianceStatus @default(UNKNOWN)
+  lastCheckedAt              DateTime         @default(now())
+
+  asset  Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+// Append-only audit log of every check-in payload
+model DeviceCheckin {
+  id          String   @id @default(uuid())
+  assetId     String
+  payloadJson Json     // full posture snapshot
+  receivedAt  DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, receivedAt])
+}
+
+// Enrollment state per device
+model DeviceEnrollment {
+  id             String   @id @default(uuid())
+  assetId        String   @unique
+  apiKeyHash     String   // bcrypt hash of the issued API key
+  organizationId String
+  enrolledAt     DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  revoked        Boolean  @default(false)
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+// Admin-created one-time tokens for device enrollment
+model EnrollmentToken {
+  id             String    @id @default(uuid())
+  token          String    @unique // plain-text random token (short-lived)
+  organizationId String
+  createdBy      String    // userId
+  label          String?   // optional friendly name e.g. "Alice's MacBook"
+  usedAt         DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId])
 }
 
 /////////////////////////
