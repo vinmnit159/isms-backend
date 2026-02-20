@@ -114,38 +114,228 @@ export const ISO_ANNEX_A_CONTROLS = [
   { isoReference: "A.8.34", title: "Protection of information systems during audit testing", description: "Audit testing shall not compromise security." }
 ];
 
-// Default Policies
+// Default Policies — derived from ISO 27001 ISMS policy template library
 export const DEFAULT_POLICIES = [
+  // ── Core ISMS documents ────────────────────────────────────────────────────
+  {
+    name: "ISMS Scope",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.1"],
+    description: "Defines the boundaries and applicability of the Information Security Management System, including in-scope assets, processes, locations, and exclusions.",
+  },
   {
     name: "Information Security Policy",
     version: "1.0",
     status: "DRAFT",
-    description: "Defines the organization's approach to information security."
+    category: "ISMS Core",
+    isoReferences: ["A.5.1", "A.5.4"],
+    description: "Sets out the organization's overall commitment to information security, defines the policy framework (access control, risk, acceptable use, etc.), and establishes roles and responsibilities.",
   },
   {
-    name: "Access Control Policy",
-    version: "1.0", 
+    name: "Information Security Roles and Responsibilities",
+    version: "1.0",
     status: "DRAFT",
-    description: "Defines rules for access provisioning, review, and revocation."
+    category: "ISMS Core",
+    isoReferences: ["A.5.2", "A.6.2"],
+    description: "Defines information security roles (CISO, security team, system owners, users) and the responsibilities assigned to each role within the ISMS.",
+  },
+  {
+    name: "Risk Assessment and Risk Treatment Process",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.1", "A.5.24"],
+    description: "Describes the methodology for identifying, analysing, evaluating, and treating information security risks based on NIST 800-30 and ISO 27005 frameworks.",
+  },
+  {
+    name: "Statement of Applicability",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.1"],
+    description: "Documents which ISO 27001 Annex A controls are applicable or excluded, with justifications for each decision.",
+  },
+  {
+    name: "Information Security Objectives Plan",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.1", "A.5.36"],
+    description: "Defines measurable information security objectives, the plans to achieve them, owners, timelines, and how progress will be monitored.",
+  },
+  {
+    name: "Master List of Documents",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.33"],
+    description: "The authoritative register of all ISMS controlled documents, including document ID, title, version, owner, and review date.",
+  },
+  {
+    name: "Procedure for Control of Documented Information",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.33"],
+    description: "Defines how ISMS documents are created, reviewed, approved, distributed, version-controlled, and retained or disposed of.",
+  },
+  {
+    name: "Procedure for Internal Audits",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.35"],
+    description: "Defines the process for planning and conducting internal ISMS audits, recording findings, and reporting results to management.",
+  },
+  {
+    name: "Procedure for Management Review",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.35"],
+    description: "Defines the agenda, inputs, outputs, and frequency of management review meetings to evaluate ISMS performance and drive continual improvement.",
+  },
+  {
+    name: "Procedure for Corrective Action and Continual Improvement",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.27", "A.5.36"],
+    description: "Defines how nonconformities are identified, root-cause analysed, corrected, and how improvements are tracked and verified over time.",
+  },
+  {
+    name: "Relevant Laws, Regulations and Contractual Requirements",
+    version: "1.0",
+    status: "DRAFT",
+    category: "ISMS Core",
+    isoReferences: ["A.5.31"],
+    description: "Register of applicable legal, statutory, regulatory, and contractual obligations (GDPR, PDPA, PCI-DSS, etc.) and how the organisation ensures compliance.",
+  },
+  // ── Technical & Operational policies ──────────────────────────────────────
+  {
+    name: "Access Control Policy",
+    version: "1.0",
+    status: "DRAFT",
+    category: "Technical",
+    isoReferences: ["A.5.15", "A.5.16", "A.5.17", "A.5.18", "A.8.2", "A.8.3", "A.8.5"],
+    description: "Defines the principle of least privilege, user provisioning/deprovisioning, privileged access management, password standards, MFA requirements, and periodic access reviews.",
+  },
+  {
+    name: "Asset Management Policy",
+    version: "1.0",
+    status: "DRAFT",
+    category: "Technical",
+    isoReferences: ["A.5.9", "A.5.10", "A.5.11", "A.5.12", "A.5.13"],
+    description: "Defines requirements for maintaining an asset inventory, classifying information assets, labelling, acceptable use, and return of assets upon departure.",
   },
   {
     name: "Risk Management Policy",
     version: "1.0",
     status: "DRAFT",
-    description: "Defines how information security risks are identified and treated."
+    category: "Technical",
+    isoReferences: ["A.5.1", "A.5.24", "A.5.25"],
+    description: "Defines how information security risks are identified, assessed, ranked (likelihood × impact 1-5 scale), treated (mitigate/accept/transfer/avoid), and tracked in the risk register.",
   },
   {
-    name: "Incident Response Policy",
+    name: "Cryptography Policy",
     version: "1.0",
     status: "DRAFT",
-    description: "Defines how information security incidents are managed."
+    category: "Technical",
+    isoReferences: ["A.8.24"],
+    description: "Defines rules for the use of cryptographic controls including encryption algorithms (AES-256, TLS 1.3), key management, certificate lifecycle, and prohibited practices.",
+  },
+  {
+    name: "Data Management Policy",
+    version: "1.0",
+    status: "DRAFT",
+    category: "Technical",
+    isoReferences: ["A.5.12", "A.5.13", "A.5.33", "A.8.10", "A.8.11", "A.8.12"],
+    description: "Defines data classification levels (Public, Internal, Confidential, Restricted), handling rules, data masking requirements, retention schedules, and secure deletion procedures.",
+  },
+  {
+    name: "Incident Response Plan",
+    version: "1.0",
+    status: "DRAFT",
+    category: "Technical",
+    isoReferences: ["A.5.24", "A.5.25", "A.5.26", "A.5.27", "A.5.28", "A.6.8"],
+    description: "Defines the end-to-end process for detecting, containing, eradicating, and recovering from information security incidents, including severity classification, response team roles, escalation paths, and post-incident review.",
+  },
+  {
+    name: "Operations Security Policy",
+    version: "1.0",
+    status: "DRAFT",
+    category: "Technical",
+    isoReferences: ["A.8.6", "A.8.7", "A.8.8", "A.8.9", "A.8.13", "A.8.15", "A.8.16", "A.8.19"],
+    description: "Defines operational security controls covering change management, capacity planning, malware protection, patch management, configuration management, logging and monitoring, and software installation controls.",
+  },
+  {
+    name: "Physical Security Policy",
+    version: "1.0",
+    status: "DRAFT",
+    category: "Technical",
+    isoReferences: ["A.7.1", "A.7.2", "A.7.3", "A.7.4", "A.7.7", "A.7.9", "A.7.14"],
+    description: "Defines physical access controls, secure area requirements, clean desk rules, visitor management, protection of off-premises equipment, and secure disposal of storage media.",
   },
   {
     name: "Secure Development Policy",
     version: "1.0",
     status: "DRAFT",
-    description: "Defines secure development and change management practices."
-  }
+    category: "Technical",
+    isoReferences: ["A.8.25", "A.8.26", "A.8.27", "A.8.28", "A.8.29", "A.8.31"],
+    description: "Defines secure coding practices, security requirements in the SDLC, mandatory peer code review, separation of environments, security testing, and handling of data classified as Restricted in development projects.",
+  },
+  {
+    name: "Third-Party Management Policy",
+    version: "1.0",
+    status: "DRAFT",
+    category: "Technical",
+    isoReferences: ["A.5.19", "A.5.20", "A.5.21", "A.5.22"],
+    description: "Defines due-diligence requirements for vendors and suppliers, NDA/DPA requirements, third-party risk questionnaire process, high-severity risk escalation, contract security clauses, and annual re-evaluation.",
+  },
+  // ── People & HR policies ───────────────────────────────────────────────────
+  {
+    name: "Human Resource Security Policy",
+    version: "1.0",
+    status: "DRAFT",
+    category: "People",
+    isoReferences: ["A.6.1", "A.6.2", "A.6.3", "A.6.4", "A.6.5", "A.6.6"],
+    description: "Defines background screening requirements, security responsibilities in employment contracts, security awareness training obligations, disciplinary processes for violations, and off-boarding security procedures.",
+  },
+  {
+    name: "Code of Conduct",
+    version: "1.0",
+    status: "DRAFT",
+    category: "People",
+    isoReferences: ["A.5.10", "A.6.2", "A.6.4"],
+    description: "Defines standards of professional conduct, acceptable use of company systems, confidentiality obligations, conflicts of interest, and consequences for non-compliance.",
+  },
+  // ── Specialised policies ───────────────────────────────────────────────────
+  {
+    name: "Business Continuity and Disaster Recovery Plan",
+    version: "1.0",
+    status: "DRAFT",
+    category: "Resilience",
+    isoReferences: ["A.5.29", "A.5.30"],
+    description: "Defines RTO/RPO targets, recovery team roles, recovery strategies for partial and full infrastructure failures, communication procedures, and post-incident return-to-operations steps.",
+  },
+  {
+    name: "Data Protection and Security Training Policy",
+    version: "1.0",
+    status: "DRAFT",
+    category: "People",
+    isoReferences: ["A.6.3"],
+    description: "Defines mandatory security awareness training requirements, frequency, content (phishing, data handling, incident reporting), new-hire onboarding obligations, and training effectiveness measurement.",
+  },
+  {
+    name: "Whistleblower Policy",
+    version: "1.0",
+    status: "DRAFT",
+    category: "People",
+    isoReferences: ["A.6.8"],
+    description: "Defines the confidential reporting channel for suspected security violations, fraud, or unethical behaviour, non-retaliation commitments, and the investigation process.",
+  },
 ];
 
 export async function seedDatabase(prisma: PrismaClient, organizationId: string) {
@@ -196,9 +386,9 @@ export async function seedDatabase(prisma: PrismaClient, organizationId: string)
           name: policy.name,
           version: policy.version,
           status: policy.status,
-          documentUrl: `https://docs.${organizationId}.com/policies/${policy.name.toLowerCase().replace(/\s+/g, '-')}`,
-          approvedBy: null, // Will be approved by organization admin later
-          approvedAt: null, // Will be approved by organization admin later
+          documentUrl: '',   // No document attached yet — admin will upload
+          approvedBy: null,
+          approvedAt: null,
           organizationId: organizationId,
         },
       });

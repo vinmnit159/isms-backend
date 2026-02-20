@@ -9,6 +9,7 @@ import { Permission } from '../../lib/rbac';
 import { saveUploadedFile, deleteStoredFile, UPLOAD_DIR } from '../../lib/file-storage';
 import { logActivity } from '../../lib/activity-logger';
 import { getDriveFolderIds, uploadFileToDrive } from '../integrations/google-drive';
+import { DEFAULT_POLICIES } from '../../lib/seed';
 
 const createPolicySchema = z.object({
   name: z.string().min(1, 'Policy name is required'),
@@ -22,6 +23,13 @@ const createPolicySchema = z.object({
 const updatePolicySchema = createPolicySchema.partial();
 
 export async function policyRoutes(app: FastifyInstance) {
+  // GET /api/policies/templates — return the built-in template catalogue (no org scope needed)
+  app.get('/templates', {
+    onRequest: [requirePermission(Permission.READ_CONTROLS)],
+  }, async (_request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send({ success: true, data: DEFAULT_POLICIES });
+  });
+
   // GET /api/policies — list all policies for the user's organization
   app.get('/', {
     onRequest: [requirePermission(Permission.READ_CONTROLS)],
