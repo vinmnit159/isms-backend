@@ -108,6 +108,37 @@ model User {
   organization   Organization    @relation(fields: [organizationId], references: [id])
   activityLogs   ActivityLog[]
   gitAccounts    UserGitAccount[]
+  onboarding     UserOnboarding?
+}
+
+/////////////////////////
+// SECURITY ONBOARDING
+/////////////////////////
+
+// One row per user — tracks completion of the 3 mandatory onboarding tasks.
+model UserOnboarding {
+  id                    String    @id @default(uuid())
+  userId                String    @unique
+  organizationId        String
+
+  // Task 1: Accept all organisation policies
+  policyAcceptedAt      DateTime?
+  policyVersionAccepted String?   // JSON array of accepted policy ids / versions
+
+  // Task 2: Install & enroll MDM agent
+  mdmEnrolledAt         DateTime?
+  deviceId              String?   // Asset id of the enrolled device
+
+  // Task 3: Complete security awareness training video
+  trainingStartedAt     DateTime?
+  trainingCompletedAt   DateTime?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 model UserGitAccount {
