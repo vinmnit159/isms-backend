@@ -175,12 +175,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     const { organizationId, createdBy } = tokenRecord;
 
-    // Find the org's admin user to use as ownerId
-    const orgAdmin = await prisma.user.findFirst({
-      where: { organizationId, role: { in: ['ORG_ADMIN', 'SUPER_ADMIN', 'SECURITY_OWNER'] } },
-      select: { id: true },
-    });
-    const ownerId = orgAdmin?.id ?? createdBy;
+    // Use the token creator as ownerId so MDM task tracks to the correct user
+    const ownerId = createdBy;
 
     // Upsert asset (ENDPOINT type) — match on serial number or hostname
     let asset = await prisma.asset.findFirst({
