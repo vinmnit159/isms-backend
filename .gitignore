@@ -123,5 +123,5 @@ dist/
 *.sqlite
 *.db
 
-# Prisma
-prisma/migrations/
+# Prisma — migration files must be committed for production deploys
+# prisma/migrations/

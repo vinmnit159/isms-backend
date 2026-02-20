@@ -1,0 +1,6 @@
+-- Baseline migration: the Railway production database already contains all
+-- tables defined in the original schema. This file is intentionally empty
+-- so Prisma records it as "applied" without executing DDL that would fail
+-- with "already exists" errors.
+--
+-- See: https://pris.ly/d/migrate-baseline
