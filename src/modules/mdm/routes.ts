@@ -188,6 +188,52 @@ export async function mdmRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // ── PATCH /api/mdm/devices/:id/owner — reassign device owner ──────────────
+  fastify.patch(
+    '/devices/:id/owner',
+    { onRequest: [authenticate] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = (request as any).user;
+      if (!ADMIN_ROLES.includes(user.role)) {
+        return reply.status(403).send({ error: 'Forbidden', message: 'Admin role required' });
+      }
+
+      const { id } = request.params as any;
+      const { ownerId } = (request.body as any) ?? {};
+
+      if (!ownerId || typeof ownerId !== 'string') {
+        return reply.status(400).send({ error: 'ownerId is required' });
+      }
+
+      // Verify the asset belongs to this org and is an enrolled endpoint
+      const asset = await prisma.asset.findFirst({
+        where: { id, organizationId: user.organizationId, type: 'ENDPOINT' },
+      });
+      if (!asset) return reply.status(404).send({ error: 'Device not found' });
+
+      // Verify the new owner belongs to the same org
+      const newOwner = await prisma.user.findFirst({
+        where: { id: ownerId, organizationId: user.organizationId },
+        select: { id: true, name: true, email: true },
+      });
+      if (!newOwner) return reply.status(404).send({ error: 'User not found in organisation' });
+
+      const updated = await prisma.asset.update({
+        where: { id },
+        data: { ownerId },
+        include: {
+          compliance: true,
+          enrollment: {
+            select: { id: true, enrolledAt: true, lastSeenAt: true, revoked: true },
+          },
+        },
+      });
+
+      logActivity(user.sub ?? user.id, 'UPDATED', 'ASSET', id);
+      return reply.send({ device: updated, newOwner });
+    }
+  );
+
   // ── GET /api/mdm/overview — dashboard stats ────────────────────────────────
   fastify.get(
     '/overview',
