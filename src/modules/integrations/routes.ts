@@ -218,6 +218,11 @@ export async function integrationRoutes(fastify: FastifyInstance) {
     // Log the connection event
     logActivity(userId, 'CONNECTED', 'INTEGRATION', orgId);
 
+    // Seed automated tests idempotently on connect (fire-and-forget)
+    seedAutomatedTests(orgId, fastify).catch((err) =>
+      fastify.log.error(err, 'Automated test seeding on connect failed')
+    );
+
     // Fire-and-forget initial sync
     syncRepos(orgId, accessToken, fastify).catch((err) =>
       fastify.log.error(err, 'Initial GitHub repo sync failed')
@@ -445,55 +450,24 @@ export async function integrationRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'GitHub integration not connected or inactive' });
       }
 
-      // Use the caller (or org admin) as default owner
-      const defaultOwner = await prisma.user.findFirst({
-        where: { organizationId: user.organizationId, role: { in: ['SUPER_ADMIN', 'ORG_ADMIN', 'SECURITY_OWNER'] as any } },
-        select: { id: true },
+      // Count existing before seed
+      const before = await prisma.test.count({
+        where: { organizationId: user.organizationId, integrationId: integration.id },
       });
-      const ownerId = defaultOwner?.id ?? (user.sub ?? user.id);
 
-      // Due date = 30 days from now
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 30);
+      await seedAutomatedTests(user.organizationId, fastify);
 
-      const created: string[] = [];
-      const skipped: string[] = [];
+      const after = await prisma.test.count({
+        where: { organizationId: user.organizationId, integrationId: integration.id },
+      });
 
-      for (const name of GITHUB_AUTOMATED_TESTS) {
-        const existing = await prisma.test.findFirst({
-          where: { name, organizationId: user.organizationId, integrationId: integration.id },
-        });
-        if (existing) { skipped.push(name); continue; }
-
-        const t = await prisma.test.create({
-          data: {
-            name,
-            category: 'Engineering' as any,
-            type: 'Automated' as any,
-            status: 'Due_soon' as any,
-            lastResult: 'Not_Run' as any,
-            ownerId,
-            dueDate,
-            organizationId: user.organizationId,
-            integrationId: integration.id,
-            autoRemediationSupported: false,
-          },
-        });
-        await prisma.testHistory.create({
-          data: {
-            testId: t.id,
-            changedBy: user.sub ?? user.id,
-            changeType: 'CREATED',
-            newValue: name,
-          },
-        });
-        created.push(name);
-      }
+      const created = after - before;
+      const skipped = GITHUB_AUTOMATED_TESTS.length - created;
 
       logActivity(user.sub ?? user.id, 'CREATED', 'AUTOMATED_TESTS_SEED', user.organizationId);
       return reply.send({
         success: true,
-        data: { created: created.length, skipped: skipped.length },
+        data: { created, skipped },
       });
     }
   );
@@ -553,6 +527,67 @@ export async function integrationRoutes(fastify: FastifyInstance) {
       return reply.send({ success: true, data: tests, seeded: tests.length > 0 });
     }
   );
+}
+
+// ─── Automated test seeder ────────────────────────────────────────────────────
+//
+// Idempotently creates the 13 predefined Engineering/Automated tests linked to
+// the org's GitHub integration. Safe to call multiple times (skips existing).
+//
+
+export async function seedAutomatedTests(
+  organizationId: string,
+  fastify: FastifyInstance
+): Promise<void> {
+  const integration = await prisma.integration.findUnique({
+    where: { organizationId_provider: { organizationId, provider: 'GITHUB' } },
+  });
+  if (!integration || integration.status !== 'ACTIVE') return;
+
+  const defaultOwner = await prisma.user.findFirst({
+    where: { organizationId, role: { in: ['SUPER_ADMIN', 'ORG_ADMIN', 'SECURITY_OWNER'] as any } },
+    select: { id: true },
+  });
+  const ownerId = defaultOwner?.id ?? integration.connectedBy;
+
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 30);
+
+  let created = 0;
+  for (const name of GITHUB_AUTOMATED_TESTS) {
+    const existing = await prisma.test.findFirst({
+      where: { name, organizationId, integrationId: integration.id },
+    });
+    if (existing) continue;
+
+    const t = await prisma.test.create({
+      data: {
+        name,
+        category: 'Engineering' as any,
+        type: 'Automated' as any,
+        status: 'Due_soon' as any,
+        lastResult: 'Not_Run' as any,
+        ownerId,
+        dueDate,
+        organizationId,
+        integrationId: integration.id,
+        autoRemediationSupported: false,
+      },
+    });
+    await prisma.testHistory.create({
+      data: {
+        testId: t.id,
+        changedBy: 'system',
+        changeType: 'CREATED',
+        newValue: name,
+      },
+    });
+    created++;
+  }
+
+  if (created > 0) {
+    fastify.log.info(`Seeded ${created} automated tests for org ${organizationId}`);
+  }
 }
 
 // ─── Shared sync helper ───────────────────────────────────────────────────────
