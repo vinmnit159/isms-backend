@@ -272,7 +272,7 @@ model RiskTreatment {
   notes     String?
 
   risk      Risk    @relation(fields: [riskId], references: [id])
-  control   Control @relation(fields: [controlId], references: [id])
+  control     Control @relation(fields: [controlId], references: [id])
 }
 
 /////////////////////////
@@ -292,7 +292,8 @@ model Control {
   organization   Organization  @relation(fields: [organizationId], references: [id])
   evidence       Evidence[]
   riskMappings   RiskTreatment[]
-  findings      AuditFinding[]
+  findings       AuditFinding[]
+  testMappings   TestControl[]
 }
 
 /////////////////////////
@@ -310,7 +311,8 @@ model Evidence {
   automated   Boolean      @default(false)
   createdAt   DateTime     @default(now())
 
-  control     Control @relation(fields: [controlId], references: [id])
+  control      Control        @relation(fields: [controlId], references: [id])
+  testMappings TestEvidence[]
 }
 
 /////////////////////////
@@ -347,6 +349,7 @@ model Audit {
 
   organization   Organization @relation(fields: [organizationId], references: [id])
   findings       AuditFinding[]
+  testMappings   TestAudit[]
 }
 
 model AuditFinding {
@@ -361,6 +364,122 @@ model AuditFinding {
 
   audit       Audit   @relation(fields: [auditId], references: [id])
   control     Control @relation(fields: [controlId], references: [id])
+}
+
+/////////////////////////
+// TEST MANAGEMENT
+/////////////////////////
+
+enum TestCategory {
+  Custom
+  Engineering
+  HR
+  IT
+  Policy
+  Risks
+}
+
+enum TestType {
+  Document
+  Automated
+}
+
+enum TestStatus {
+  Due_soon       @map("Due_soon")
+  Needs_remediation @map("Needs_remediation")
+  OK
+  Overdue
+}
+
+// Core test record
+model Test {
+  id              String       @id @default(uuid())
+  name            String
+  category        TestCategory
+  ownerId         String       // FK → User.id
+  type            TestType
+  status          TestStatus   @default(Due_soon)
+  dueDate         DateTime
+  completedAt     DateTime?
+  organizationId  String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Mapping relations
+  controls        TestControl[]
+  frameworks      TestFramework[]
+  audits          TestAudit[]
+  evidences       TestEvidence[]
+  history         TestHistory[]
+
+  @@index([organizationId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// Many-to-many: Test ↔ Control
+model TestControl {
+  id        String @id @default(uuid())
+  testId    String
+  controlId String
+
+  test      Test    @relation(fields: [testId], references: [id], onDelete: Cascade)
+  control   Control @relation(fields: [controlId], references: [id], onDelete: Cascade)
+
+  @@unique([testId, controlId])
+  @@index([controlId])
+}
+
+// Many-to-many: Test ↔ Framework (stored as free-text name since no Framework model exists yet)
+model TestFramework {
+  id            String @id @default(uuid())
+  testId        String
+  frameworkName String // e.g. "ISO 27001:2022", "SOC 2"
+
+  test          Test @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@unique([testId, frameworkName])
+}
+
+// Many-to-many: Test ↔ Audit
+model TestAudit {
+  id      String @id @default(uuid())
+  testId  String
+  auditId String
+
+  test    Test  @relation(fields: [testId], references: [id], onDelete: Cascade)
+  audit   Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@unique([testId, auditId])
+  @@index([auditId])
+}
+
+// Many-to-many: Test ↔ Evidence
+model TestEvidence {
+  id         String @id @default(uuid())
+  testId     String
+  evidenceId String
+
+  test       Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  evidence   Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@unique([testId, evidenceId])
+}
+
+// Immutable audit trail
+model TestHistory {
+  id          String   @id @default(uuid())
+  testId      String
+  changedBy   String   // userId
+  changeType  String   // e.g. "STATUS_CHANGED", "EVIDENCE_ATTACHED", "OWNER_CHANGED", "DUE_DATE_UPDATED"
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime @default(now())
+
+  test        Test @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@index([testId, createdAt])
 }
 
 /////////////////////////

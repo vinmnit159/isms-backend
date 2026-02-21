@@ -27,6 +27,7 @@ import { activityLogRoutes } from './modules/activity-logs/routes';
 import { mdmRoutes } from './modules/mdm/routes';
 import { agentRoutes } from './modules/agent/routes';
 import { onboardingRoutes } from './modules/onboarding/routes';
+import { testRoutes } from './modules/tests/routes';
 
 export const app: FastifyInstance = Fastify({
   logger: {
@@ -96,6 +97,7 @@ app.register(activityLogRoutes, { prefix: '/api/activity-logs' });
 app.register(mdmRoutes,         { prefix: '/api/mdm' });
 app.register(agentRoutes,       { prefix: '/api/agent' });
 app.register(onboardingRoutes,  { prefix: '/api/onboarding' });
+app.register(testRoutes,        { prefix: '/api/tests' });
 
 // Health check
 app.get('/health', async () => {
