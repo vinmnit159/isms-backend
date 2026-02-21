@@ -109,6 +109,7 @@ model User {
   activityLogs   ActivityLog[]
   gitAccounts    UserGitAccount[]
   onboarding     UserOnboarding?
+  ownedTests     Test[]          @relation("TestOwner")
 }
 
 /////////////////////////
@@ -420,6 +421,7 @@ model Test {
   autoRemediationSupported Boolean   @default(false)
 
   // Relations
+  owner           User            @relation("TestOwner", fields: [ownerId], references: [id])
   integration     Integration?    @relation(fields: [integrationId], references: [id])
 
   // Mapping relations
