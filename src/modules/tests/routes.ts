@@ -138,7 +138,7 @@ export async function testRoutes(app: FastifyInstance) {
     // Client-side status filter applied after compute
     if (status) tests = tests.filter((t: any) => t.status === status);
 
-    return reply.send({ tests, total, page: Number(page), limit: Number(limit) });
+    return reply.send({ success: true, data: tests, total, page: Number(page), limit: Number(limit) });
   });
 
   // ── GET /summary ─────────────────────────────────────────────────────────────
@@ -155,11 +155,14 @@ export async function testRoutes(app: FastifyInstance) {
     ]);
 
     return reply.send({
-      total,
-      completed,
-      passPercentage: total > 0 ? Math.round((completed / total) * 100) : 0,
-      overdue,
-      dueSoon,
+      success: true,
+      data: {
+        total,
+        completed,
+        passPercentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+        overdue,
+        dueSoon,
+      },
     });
   });
 
@@ -174,7 +177,7 @@ export async function testRoutes(app: FastifyInstance) {
     });
     if (!test) return reply.status(404).send({ error: 'Test not found' });
 
-    return reply.send({ test: applyStatus(test) });
+    return reply.send({ success: true, data: applyStatus(test) });
   });
 
   // ── POST / — create ──────────────────────────────────────────────────────────
@@ -266,7 +269,7 @@ export async function testRoutes(app: FastifyInstance) {
   });
 
   // ── POST /:id/complete ────────────────────────────────────────────────────────
-  app.post('/:id/complete', { onRequest: [authenticate] }, async (req: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/complete', { onRequest: [authenticate], schema: { body: { type: 'object' } } }, async (req: FastifyRequest, reply: FastifyReply) => {
     const user = (req as any).user;
     const { id } = req.params as any;
 
@@ -415,11 +418,11 @@ export async function testRoutes(app: FastifyInstance) {
       take: Number(limit),
     });
 
-    return reply.send({ history });
+    return reply.send({ success: true, data: history });
   });
 
   // ── POST /seed — idempotent seeder ────────────────────────────────────────────
-  app.post('/seed', { onRequest: [authenticate] }, async (req: FastifyRequest, reply: FastifyReply) => {
+  app.post('/seed', { onRequest: [authenticate], schema: { body: { type: 'object' } } }, async (req: FastifyRequest, reply: FastifyReply) => {
     const user = (req as any).user;
     if (!isAdmin(user)) return reply.status(403).send({ error: 'Forbidden' });
 
@@ -479,6 +482,6 @@ export async function testRoutes(app: FastifyInstance) {
     }
 
     logActivity(user.sub ?? user.id, 'CREATED', 'TEST_SEED', orgId);
-    return reply.send({ created: created.length, skipped: skipped.length, names: { created, skipped } });
+    return reply.send({ success: true, data: { created: created.length, skipped: skipped.length } });
   });
 }
