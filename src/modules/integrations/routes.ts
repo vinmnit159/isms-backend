@@ -12,6 +12,30 @@ import {
   exchangeCodeForTokens,
   bootstrapFolderStructure,
 } from './google-drive';
+import { GitHubTestEvaluator, evalResultToTestStatus, EvaluatorContext } from './github-test-evaluator';
+
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ORG_ADMIN', 'SECURITY_OWNER'];
+
+// The 13 predefined GitHub automated tests
+const GITHUB_AUTOMATED_TESTS = [
+  // Vulnerability
+  'Medium vulnerabilities identified in packages are addressed (GitHub Repo)',
+  'High vulnerabilities identified in packages are addressed (GitHub Repo)',
+  'Critical vulnerabilities identified in packages are addressed (GitHub Repo)',
+  'Low vulnerabilities identified in packages are addressed (GitHub Repo)',
+  // Access & Identity
+  'GitHub accounts associated with users',
+  'All GitHub members must map to ISMS users',
+  'GitHub accounts deprovisioned when personnel leave',
+  'MFA on GitHub',
+  // Code Review
+  'GitHub code changes were approved or provided justification for exception',
+  'Application changes reviewed',
+  'Author is not the reviewer of pull requests',
+  // Repository Governance
+  'Company has a version control system',
+  'GitHub repository visibility has been set to private',
+] as const;
 
 // ISO control reference → DB lookup
 async function findControlId(organizationId: string, isoReference: string): Promise<string | null> {
@@ -399,6 +423,136 @@ export async function integrationRoutes(fastify: FastifyInstance) {
       return reply.send({ success: true });
     }
   );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // POST /integrations/github/seed-tests
+  // Idempotent — creates all 13 Engineering/Automated GitHub tests for the org.
+  // Admin only.
+  // ──────────────────────────────────────────────────────────────────────────
+  fastify.post(
+    '/github/seed-tests',
+    { onRequest: [authenticate], schema: { body: { type: 'object' } } },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = (request as any).user;
+      if (!ADMIN_ROLES.includes(user?.role)) {
+        return reply.status(403).send({ error: 'Forbidden' });
+      }
+
+      const integration = await prisma.integration.findUnique({
+        where: { organizationId_provider: { organizationId: user.organizationId, provider: 'GITHUB' } },
+      });
+      if (!integration || integration.status !== 'ACTIVE') {
+        return reply.status(400).send({ error: 'GitHub integration not connected or inactive' });
+      }
+
+      // Use the caller (or org admin) as default owner
+      const defaultOwner = await prisma.user.findFirst({
+        where: { organizationId: user.organizationId, role: { in: ['SUPER_ADMIN', 'ORG_ADMIN', 'SECURITY_OWNER'] as any } },
+        select: { id: true },
+      });
+      const ownerId = defaultOwner?.id ?? (user.sub ?? user.id);
+
+      // Due date = 30 days from now
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+
+      const created: string[] = [];
+      const skipped: string[] = [];
+
+      for (const name of GITHUB_AUTOMATED_TESTS) {
+        const existing = await prisma.test.findFirst({
+          where: { name, organizationId: user.organizationId, integrationId: integration.id },
+        });
+        if (existing) { skipped.push(name); continue; }
+
+        const t = await prisma.test.create({
+          data: {
+            name,
+            category: 'Engineering' as any,
+            type: 'Automated' as any,
+            status: 'Due_soon' as any,
+            lastResult: 'Not_Run' as any,
+            ownerId,
+            dueDate,
+            organizationId: user.organizationId,
+            integrationId: integration.id,
+            autoRemediationSupported: false,
+          },
+        });
+        await prisma.testHistory.create({
+          data: {
+            testId: t.id,
+            changedBy: user.sub ?? user.id,
+            changeType: 'CREATED',
+            newValue: name,
+          },
+        });
+        created.push(name);
+      }
+
+      logActivity(user.sub ?? user.id, 'CREATED', 'AUTOMATED_TESTS_SEED', user.organizationId);
+      return reply.send({
+        success: true,
+        data: { created: created.length, skipped: skipped.length },
+      });
+    }
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // POST /integrations/github/run-tests
+  // Runs all automated tests linked to this org's GitHub integration.
+  // Stores results in Test.lastResult + IntegrationTestRun rows.
+  // Admin only. Fire-and-forget model: returns immediately, runs in background.
+  // ──────────────────────────────────────────────────────────────────────────
+  fastify.post(
+    '/github/run-tests',
+    { onRequest: [authenticate], schema: { body: { type: 'object' } } },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = (request as any).user;
+      if (!ADMIN_ROLES.includes(user?.role)) {
+        return reply.status(403).send({ error: 'Forbidden' });
+      }
+
+      const integration = await prisma.integration.findUnique({
+        where: { organizationId_provider: { organizationId: user.organizationId, provider: 'GITHUB' } },
+      });
+      if (!integration || integration.status !== 'ACTIVE') {
+        return reply.status(400).send({ error: 'GitHub integration not connected or inactive' });
+      }
+
+      const token = decrypt(integration.accessToken);
+      logActivity(user.sub ?? user.id, 'SCANNED', 'INTEGRATION', user.organizationId);
+
+      // Run in background — don't await
+      runAutomatedTests(user.organizationId, integration.id, token, fastify).catch((err) =>
+        fastify.log.error(err, 'Automated test run failed')
+      );
+
+      return reply.send({ success: true, message: 'Automated test run started in background' });
+    }
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /integrations/github/tests — list automated tests seeded for this org
+  // ──────────────────────────────────────────────────────────────────────────
+  fastify.get(
+    '/github/tests',
+    { onRequest: [authenticate] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = (request as any).user;
+      const integration = await prisma.integration.findUnique({
+        where: { organizationId_provider: { organizationId: user.organizationId, provider: 'GITHUB' } },
+      });
+      if (!integration) return reply.send({ tests: [], seeded: false });
+
+      const tests = await prisma.test.findMany({
+        where: { organizationId: user.organizationId, integrationId: integration.id },
+        orderBy: { name: 'asc' },
+      });
+
+      return reply.send({ success: true, data: tests, seeded: tests.length > 0 });
+    }
+  );
 }
 
 // ─── Shared sync helper ───────────────────────────────────────────────────────
@@ -463,4 +617,129 @@ export async function syncRepos(
   );
 
   fastify.log.info(`GitHub sync complete for org ${organizationId}: ${repos.length} repos`);
+
+  // After repo sync, also run automated tests for this org
+  await runAutomatedTests(organizationId, integration.id, token, fastify).catch((err: any) =>
+    fastify.log.error(err, `Automated test run failed for org ${organizationId}`)
+  );
+}
+
+// ─── Automated test runner ────────────────────────────────────────────────────
+//
+// Fetches all Engineering/Automated tests linked to integrationId, evaluates
+// each via GitHubTestEvaluator (GitHub data is fetched once and cached), then
+// writes results to Test.lastResult + IntegrationTestRun (append-only).
+//
+
+export async function runAutomatedTests(
+  organizationId: string,
+  integrationId: string,
+  token: string,
+  fastify: FastifyInstance
+): Promise<void> {
+  // Load linked automated tests
+  const tests = await prisma.test.findMany({
+    where: { organizationId, integrationId, type: 'Automated' },
+  });
+
+  if (tests.length === 0) {
+    fastify.log.info(`No automated tests for org ${organizationId} / integration ${integrationId}`);
+    return;
+  }
+
+  // Build evaluator context: collect linked GitHub usernames from UserGitAccount
+  const gitAccounts = await prisma.userGitAccount.findMany({
+    where: { organizationId },
+    select: { githubUsername: true },
+  });
+  const context: EvaluatorContext = {
+    linkedGitHubLogins: gitAccounts.map((a) => a.githubUsername.toLowerCase()),
+  };
+
+  const evaluator = new GitHubTestEvaluator(token);
+  const now = new Date();
+
+  for (const test of tests) {
+    const start = Date.now();
+    try {
+      const evaluation = await evaluator.evaluateByName(test.name, context);
+      const durationMs = Date.now() - start;
+      const newStatus = evalResultToTestStatus(evaluation.status);
+
+      // Update the test record
+      await prisma.test.update({
+        where: { id: test.id },
+        data: {
+          lastRunAt: now,
+          lastResult: evaluation.status as any,
+          lastResultDetails: evaluation.findings as any,
+          status: newStatus as any,
+          // Only mark completedAt if Pass and not already set
+          completedAt: evaluation.status === 'Pass' && !test.completedAt ? now : test.completedAt,
+        },
+      });
+
+      // Append-only run record
+      await prisma.integrationTestRun.create({
+        data: {
+          integrationId,
+          testId: test.id,
+          status: evaluation.status as any,
+          summary: evaluation.summary,
+          rawPayload: { findings: evaluation.findings, rawData: evaluation.rawData } as any,
+          executedAt: now,
+          durationMs,
+        },
+      });
+
+      // History entry
+      await prisma.testHistory.create({
+        data: {
+          testId: test.id,
+          changedBy: 'system',
+          changeType: 'AUTO_RUN',
+          oldValue: test.lastResult,
+          newValue: evaluation.status,
+        },
+      });
+
+      fastify.log.info(`Automated test "${test.name}" → ${evaluation.status}`);
+    } catch (err: any) {
+      fastify.log.error(err, `Failed to evaluate test "${test.name}"`);
+      // Record a Fail run so we don't silently swallow errors
+      await prisma.integrationTestRun.create({
+        data: {
+          integrationId,
+          testId: test.id,
+          status: 'Fail' as any,
+          summary: `Evaluation error: ${err?.message ?? 'unknown'}`,
+          executedAt: now,
+          durationMs: Date.now() - start,
+        },
+      }).catch(() => {});
+    }
+  }
+
+  // Auto-promote linked controls: if ALL tests for a control are OK → IMPLEMENTED
+  for (const test of tests) {
+    const controlMappings = await prisma.testControl.findMany({
+      where: { testId: test.id },
+      select: { controlId: true },
+    });
+    for (const { controlId } of controlMappings) {
+      const allMappings = await prisma.testControl.findMany({
+        where: { controlId },
+        include: { test: { select: { status: true } } },
+      });
+      const allOK = allMappings.every((m: any) => m.test.status === 'OK');
+      if (allOK) {
+        await prisma.control.update({
+          where: { id: controlId },
+          data: { status: 'IMPLEMENTED' as any },
+        });
+      }
+    }
+  }
+
+  fastify.log.info(`Automated tests complete for org ${organizationId}: ${tests.length} tests run`);
 }

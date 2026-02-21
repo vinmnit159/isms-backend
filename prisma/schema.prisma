@@ -391,6 +391,13 @@ enum TestStatus {
   Overdue
 }
 
+enum LastResult {
+  Pass
+  Fail
+  Warning
+  Not_Run    @map("Not_Run")
+}
+
 // Core test record
 model Test {
   id              String       @id @default(uuid())
@@ -405,17 +412,29 @@ model Test {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
+  // Automated-test fields
+  integrationId          String?     // FK → Integration.id (Automated tests only)
+  lastRunAt              DateTime?
+  lastResult             LastResult  @default(Not_Run)
+  lastResultDetails      Json?       // structured findings from evaluator
+  autoRemediationSupported Boolean   @default(false)
+
+  // Relations
+  integration     Integration?    @relation(fields: [integrationId], references: [id])
+
   // Mapping relations
   controls        TestControl[]
   frameworks      TestFramework[]
   audits          TestAudit[]
   evidences       TestEvidence[]
   history         TestHistory[]
+  runs            IntegrationTestRun[]
 
   @@index([organizationId])
   @@index([ownerId])
   @@index([status])
   @@index([dueDate])
+  @@index([integrationId])
 }
 
 // Many-to-many: Test ↔ Control
@@ -467,6 +486,24 @@ model TestEvidence {
   @@unique([testId, evidenceId])
 }
 
+// Append-only test execution log (automated tests)
+model IntegrationTestRun {
+  id            String     @id @default(uuid())
+  integrationId String
+  testId        String
+  status        LastResult
+  summary       String
+  rawPayload    Json?      // full evaluator output
+  executedAt    DateTime   @default(now())
+  durationMs    Int        @default(0)
+
+  integration   Integration @relation(fields: [integrationId], references: [id])
+  test          Test        @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId, executedAt])
+  @@index([testId, executedAt])
+}
+
 // Immutable audit trail
 model TestHistory {
   id          String   @id @default(uuid())
@@ -499,8 +536,10 @@ model Integration {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organization   Organization       @relation(fields: [organizationId], references: [id])
   repos          GitHubRepo[]
+  tests          Test[]
+  testRuns       IntegrationTestRun[]
 
   @@unique([organizationId, provider])
 }

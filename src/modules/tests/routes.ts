@@ -88,10 +88,11 @@ const updateTestSchema = z.object({
 // ── Standard include for full test payloads ───────────────────────────────────
 
 const TEST_INCLUDE = {
-  controls:   { include: { control: { select: { id: true, isoReference: true, title: true, status: true } } } },
-  frameworks: true,
-  audits:     { include: { audit: { select: { id: true, type: true, auditor: true, scope: true } } } },
-  evidences:  { include: { evidence: { select: { id: true, type: true, fileName: true, fileUrl: true, createdAt: true } } } },
+  controls:    { include: { control: { select: { id: true, isoReference: true, title: true, status: true } } } },
+  frameworks:  true,
+  audits:      { include: { audit: { select: { id: true, type: true, auditor: true, scope: true } } } },
+  evidences:   { include: { evidence: { select: { id: true, type: true, fileName: true, fileUrl: true, createdAt: true } } } },
+  integration: { select: { id: true, provider: true, status: true } },
 } as const;
 
 // ── Route registration ─────────────────────────────────────────────────────────
@@ -278,6 +279,10 @@ export async function testRoutes(app: FastifyInstance) {
     if (!isAdmin(user) && existing.ownerId !== (user.sub ?? user.id)) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
+    // Automated tests can only be completed by the system (via run-tests)
+    if (existing.type === 'Automated') {
+      return reply.status(409).send({ error: 'Automated tests cannot be manually completed. Use Run Scan Now to execute.' });
+    }
     if (existing.completedAt) return reply.status(409).send({ error: 'Test already completed' });
 
     const now = new Date();
@@ -419,6 +424,27 @@ export async function testRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ success: true, data: history });
+  });
+
+  // ── GET /:id/runs — integration test run history ──────────────────────────────
+  app.get('/:id/runs', { onRequest: [authenticate] }, async (req: FastifyRequest, reply: FastifyReply) => {
+    const user = (req as any).user;
+    const { id } = req.params as any;
+    const { page = '1', limit = '20' } = req.query as any;
+
+    const test = await prisma.test.findFirst({ where: { id, organizationId: user.organizationId } });
+    if (!test) return reply.status(404).send({ error: 'Test not found' });
+    if (test.type !== 'Automated') return reply.status(400).send({ error: 'Only Automated tests have run history' });
+
+    const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
+    const runs = await prisma.integrationTestRun.findMany({
+      where: { testId: id },
+      orderBy: { executedAt: 'desc' },
+      skip,
+      take: Number(limit),
+    });
+
+    return reply.send({ success: true, data: runs });
   });
 
   // ── POST /seed — idempotent seeder ────────────────────────────────────────────
