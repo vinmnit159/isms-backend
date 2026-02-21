@@ -88,6 +88,7 @@ const updateTestSchema = z.object({
 // ── Standard include for full test payloads ───────────────────────────────────
 
 const TEST_INCLUDE = {
+  owner:       { select: { id: true, name: true, email: true } },
   controls:    { include: { control: { select: { id: true, isoReference: true, title: true, status: true } } } },
   frameworks:  true,
   audits:      { include: { audit: { select: { id: true, type: true, auditor: true, scope: true } } } },
